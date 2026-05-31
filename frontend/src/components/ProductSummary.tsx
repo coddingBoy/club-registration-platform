@@ -7,7 +7,7 @@ const includedItems = [
   "Assisted coaching by Sports Performance",
 ];
 
-const summaryDetails = [
+const defaultSummaryDetails = [
   "Annual Registration plus first month Tuition Fee: R 2600-00 incl VAT",
   "Monthly Tuition Fee: R 950-00 incl VAT (9 months debit order)",
   "Training sessions once a week every Monday (4 sessions per month)",
@@ -17,7 +17,19 @@ const summaryDetails = [
   "Approximately 10 players per coach",
 ];
 
-function ProductSummary() {
+type ProductSummaryProps = {
+  title?: string;
+  price?: string;
+  label?: string;
+  details?: string[];
+};
+
+function ProductSummary({
+  title = "FIRST TOUCH PROGRAMME REGISTRATION",
+  price = "R 2,600.00",
+  label = "Registration Product",
+  details = defaultSummaryDetails,
+}: ProductSummaryProps) {
   return (
     <article className="product-card">
       <div className="product-image-placeholder">
@@ -25,14 +37,14 @@ function ProductSummary() {
       </div>
 
       <div className="product-body">
-        <p className="product-label">Registration Product</p>
-        <h2>FIRST TOUCH PROGRAMME REGISTRATION</h2>
-        <p className="product-price">R 2,600.00</p>
+        <p className="product-label">{label}</p>
+        <h2>{title}</h2>
+        <p className="product-price">{price}</p>
 
         <div className="product-divider" />
 
         <ul className="summary-list">
-          {summaryDetails.map((detail) => (
+          {details.map((detail) => (
             <li key={detail}>{detail}</li>
           ))}
         </ul>

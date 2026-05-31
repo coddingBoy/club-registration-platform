@@ -34,3 +34,34 @@ export type Option = {
   label: string;
   value: string;
 };
+
+export type PlayerAccount = {
+  playerName: string;
+  playerSurname: string;
+  idNumber: string;
+  dateOfBirth: string;
+  age: number | null;
+  gender: string;
+  guardianName: string;
+  guardianEmail: string;
+  guardianCell: string;
+  medicalAidDetails: string;
+  emergencyContact: string;
+  allergiesOrConditions: string;
+  notifications: string[];
+  password: string;
+  passportNumber: string;
+};
+
+export type ProgrammeType = "academy" | "foundation" | "holiday-camp" | "trial";
+
+export type Programme = {
+  id: ProgrammeType;
+  title: string;
+  category: string;
+  price: string;
+  description: string;
+  requiresTrial: boolean;
+  placesAvailable: number;
+  capacity: number;
+};

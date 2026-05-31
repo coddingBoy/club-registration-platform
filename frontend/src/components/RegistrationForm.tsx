@@ -9,6 +9,11 @@ import {
 import type { FormErrors, Option, RegistrationFormValues } from "../types";
 import FormField from "./FormField";
 
+type RegistrationFormProps = {
+  onComplete?: (values: ReturnType<typeof getPayload>) => void;
+  submitLabel?: string;
+};
+
 const initialValues: RegistrationFormValues = {
   playerName: "",
   playerSurname: "",
@@ -169,7 +174,10 @@ function getPayload(values: RegistrationFormValues) {
   };
 }
 
-function RegistrationForm() {
+function RegistrationForm({
+  onComplete,
+  submitLabel = "Add to Basket",
+}: RegistrationFormProps) {
   const [values, setValues] = useState<RegistrationFormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState(false);
@@ -207,6 +215,7 @@ function RegistrationForm() {
 
     const payload = getPayload(values);
     console.log("First Touch Programme registration payload", payload);
+    onComplete?.(payload);
     setSubmitted(true);
   };
 
@@ -487,7 +496,7 @@ function RegistrationForm() {
       )}
 
       <button className="submit-button" type="submit">
-        Add to Basket
+        {submitLabel}
       </button>
     </form>
   );

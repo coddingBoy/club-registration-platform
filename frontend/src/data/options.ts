@@ -35,3 +35,10 @@ export const provinceOptions: Option[] = [
   { label: "Mpumalanga", value: "Mpumalanga" },
   { label: "North West", value: "North West" },
 ];
+
+export const notificationOptions: Option[] = [
+  { label: "Trials", value: "Trials" },
+  { label: "Holiday Camps", value: "Holiday Camps" },
+  { label: "Games", value: "Games" },
+  { label: "General Notifications", value: "General Notifications" },
+];
