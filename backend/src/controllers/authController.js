@@ -1,4 +1,8 @@
-const { createToken, validateAdminCredentials } = require("../services/authService");
+const {
+  createToken,
+  validateAdminCredentials,
+  validateParentCredentials,
+} = require("../services/authService");
 
 const loginAdmin = async (req, res, next) => {
   try {
@@ -14,6 +18,21 @@ const loginAdmin = async (req, res, next) => {
   }
 };
 
+const loginParent = async (req, res, next) => {
+  try {
+    const user = await validateParentCredentials(req.body);
+    const token = createToken(user);
+
+    res.json({
+      token,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   loginAdmin,
+  loginParent,
 };

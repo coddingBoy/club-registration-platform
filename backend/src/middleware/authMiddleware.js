@@ -19,4 +19,18 @@ const requireAuth = (req, _res, next) => {
   }
 };
 
-module.exports = requireAuth;
+const requireRole = (...allowedRoles) => [
+  requireAuth,
+  (req, _res, next) => {
+    if (!allowedRoles.includes(req.user?.role)) {
+      return next(new AppError("Forbidden", 403));
+    }
+
+    next();
+  },
+];
+
+module.exports = {
+  requireAuth,
+  requireRole,
+};

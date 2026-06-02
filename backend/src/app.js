@@ -5,7 +5,7 @@ const path = require("path");
 const env = require("./config/env");
 const errorHandler = require("./middleware/errorHandler");
 const authRoutes = require("./routes/authRoutes");
-const registrationRoutes = require("./routes/registrationRoutes");
+const academyRoutes = require("./routes/academyRoutes");
 
 const app = express();
 
@@ -16,21 +16,23 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
 app.use("/api/auth", authRoutes);
-app.use("/api/registrations", registrationRoutes);
+app.use("/api/academy", academyRoutes);
+app.use("/uploads", (_req, res) => {
+  res.status(404).json({ message: "Not found" });
+});
 
 const frontendDistPath = path.join(process.cwd(), "..", "frontend", "dist");
 
 if (fs.existsSync(frontendDistPath)) {
   app.use(express.static(frontendDistPath));
 
-  app.get(/^(?!\/api|\/uploads).*/, (_req, res) => {
+  app.get(/^(?!\/api).*/, (_req, res) => {
     res.sendFile(path.join(frontendDistPath, "index.html"));
   });
 }

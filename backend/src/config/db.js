@@ -1,13 +1,14 @@
-const mongoose = require("mongoose");
 const env = require("./env");
+const prisma = require("./prisma");
 
 const connectDatabase = async () => {
-  if (!env.mongoUri) {
-    throw new Error("MONGODB_URI is missing. Add it to backend/.env.");
+  if (!env.databaseUrl) {
+    console.warn("DATABASE_URL is missing. Prisma routes will fail until it is configured.");
+    return;
   }
 
-  await mongoose.connect(env.mongoUri);
-  console.log("MongoDB connected");
+  await prisma.$queryRaw`SELECT 1`;
+  console.log("PostgreSQL connected through Prisma");
 };
 
 module.exports = connectDatabase;

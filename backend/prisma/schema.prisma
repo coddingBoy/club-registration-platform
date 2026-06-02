@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlayerStatus {
+  CURRENT
+  TRIAL_PENDING
+  TRIAL_SUCCESSFUL
+  TRIAL_UNSUCCESSFUL
+  ONBOARDED
+}
+
+enum TrialStatus {
+  PAYMENT_PENDING
+  PAID
+  SUCCESSFUL
+  UNSUCCESSFUL
+}
+
+enum CodeType {
+  TRIAL_AUTHORISATION
+  RENEWAL
+}
+
+enum PaymentStatus {
+  SIMULATED
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum OnboardingStatus {
+  PAYMENT_PENDING
+  COMPLETE
+  PAYMENT_FAILED
+}
+
+enum DocumentType {
+  BIRTH_CERTIFICATE
+  SIGNED_CODE_OF_CONDUCT
+  DEBIT_ORDER
+  DEBIT_ORDER_AUTHORISATION
+  MEDICAL_DOCUMENT
+  PAYMENT_PROOF
+  OTHER
+}
+
+enum AdminRole {
+  ADMIN
+  SUPER_ADMIN
+  READ_ONLY_STAFF
+}
+
+enum UserRole {
+  ADMIN
+  PLAYER_PARENT
+  READ_ONLY_STAFF
+}
+
+model Player {
+  id                String             @id @default(cuid())
+  membershipNumber  String?            @unique
+  passportNumber    String?            @unique
+  firstName         String
+  surname           String
+  dateOfBirth       DateTime?
+  ageGroup          String?
+  gender            String?
+  guardianName      String?
+  guardianEmail     String?
+  guardianPhone     String?
+  programmeId       String?
+  status            PlayerStatus       @default(TRIAL_PENDING)
+  trialApplications TrialApplication[]
+  codes             OneTimeCode[]
+  onboardingRecords OnboardingRecord[]
+  documents         Document[]
+  parentAccounts    ParentAccount[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model TrialApplication {
+  id               String      @id @default(cuid())
+  playerId         String?
+  player           Player?     @relation(fields: [playerId], references: [id])
+  playerName       String
+  playerSurname    String
+  dateOfBirth      DateTime?
+  guardianName     String
+  guardianEmail    String
+  guardianPhone    String
+  trialFeeAmount   Int         @default(500)
+  status           TrialStatus @default(PAID)
+  authorisationCode OneTimeCode?
+  paymentId        String?
+  payment          Payment?    @relation(fields: [paymentId], references: [id])
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model OneTimeCode {
+  id                 String              @id @default(cuid())
+  code               String              @unique
+  type               CodeType
+  playerId           String?
+  player             Player?             @relation(fields: [playerId], references: [id])
+  trialApplicationId String?             @unique
+  trialApplication   TrialApplication?   @relation(fields: [trialApplicationId], references: [id])
+  membershipNumber   String?
+  email              String
+  usedAt             DateTime?
+  expiresAt          DateTime?
+  emailLogs          EmailLog[]
+  onboardingRecords  OnboardingRecord[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model OnboardingRecord {
+  id                    String       @id @default(cuid())
+  playerId              String?
+  player                Player?      @relation(fields: [playerId], references: [id])
+  codeId                String
+  code                  OneTimeCode  @relation(fields: [codeId], references: [id])
+  programmeId           String
+  programmeTitle        String
+  playerName            String
+  playerSurname         String
+  idNumber              String
+  guardianName          String
+  guardianEmail         String
+  debitOrderAccepted    Boolean
+  codeOfConductAccepted Boolean
+  paymentOption         String
+  status                OnboardingStatus @default(PAYMENT_PENDING)
+  trialCreditAmount     Int          @default(0)
+  amountDue             Int
+  passportNumber        String
+  paymentId             String?
+  payment               Payment?     @relation(fields: [paymentId], references: [id])
+  emailLogs             EmailLog[]
+  documents             Document[]
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+model Payment {
+  id                 String              @id @default(cuid())
+  provider           String              @default("simulated")
+  providerReference  String?
+  amount             Int
+  currency           String              @default("ZAR")
+  status             PaymentStatus       @default(SIMULATED)
+  metadata           Json?
+  checkoutUrl        String?
+  trialApplications  TrialApplication[]
+  onboardingRecords  OnboardingRecord[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model EmailLog {
+  id                 String            @id @default(cuid())
+  to                 String
+  subject            String
+  body               String
+  provider           String            @default("resend")
+  providerMessageId  String?
+  status             String            @default("PENDING")
+  error              String?
+  codeId             String?
+  code               OneTimeCode?      @relation(fields: [codeId], references: [id])
+  onboardingRecordId String?
+  onboardingRecord   OnboardingRecord? @relation(fields: [onboardingRecordId], references: [id])
+  createdAt          DateTime          @default(now())
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(ADMIN)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model ParentAccount {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(PLAYER_PARENT)
+  playerId     String?
+  player       Player?  @relation(fields: [playerId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actorEmail  String
+  actorRole   String
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+}
+
+model SimpleRegistration {
+  id               String   @id @default(cuid())
+  type             String
+  referenceNumber  String   @unique
+  fullName         String
+  email            String
+  phone            String
+  dateOfBirth      DateTime?
+  parentGuardian   String?
+  specificFields   Json?
+  emailSimulatedAt DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Document {
+  id                 String            @id @default(cuid())
+  playerId           String?
+  player             Player?           @relation(fields: [playerId], references: [id])
+  onboardingRecordId String?
+  onboardingRecord   OnboardingRecord? @relation(fields: [onboardingRecordId], references: [id])
+  type               DocumentType
+  fileName           String
+  originalName       String?
+  fileUrl            String
+  storageProvider    String            @default("local")
+  storagePath        String?
+  mimeType           String?
+  sizeBytes          Int?
+  createdAt          DateTime          @default(now())
+}

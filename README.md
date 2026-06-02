@@ -1,14 +1,15 @@
-# Soccer School Registration Platform
+# Cape Town Spurs Registration Platform
 
-MVP full-stack registration platform for a soccer school.
+MVP full-stack registration and onboarding platform for Cape Town Spurs academy
+testing.
 
 ## Stack
 
-- Frontend: React, Vite, Tailwind CSS
+- Frontend: React, TypeScript, Vite, plain CSS
 - Backend: Node.js, Express
-- Database: MongoDB Atlas with Mongoose
+- Database: PostgreSQL with Prisma
 - Auth: JWT
-- Uploads: Multer
+- Uploads: Multer locally, Supabase Storage-ready
 
 ## Features
 
@@ -42,7 +43,7 @@ cd ../backend && npm install
 - Copy `frontend/.env.example` to `frontend/.env`
 - Copy `backend/.env.example` to `backend/.env`
 
-3. Add your MongoDB Atlas connection string in `backend/.env`.
+3. Add your PostgreSQL connection string in `backend/.env`.
 
 4. Start the backend:
 
@@ -65,4 +66,51 @@ Set them in `backend/.env`:
 ```env
 ADMIN_EMAIL=admin@soccerschool.com
 ADMIN_PASSWORD=admin123
+```
+
+## Testing Deployment
+
+The repo includes `render.yaml` for a Render Blueprint deployment:
+
+- One Node web service
+- One managed PostgreSQL database
+- Prisma migrations run during service startup
+- React is built into `frontend/dist`
+- Express serves both `/api/*` and the built frontend from the same Render URL
+
+### Render Setup
+
+1. Push the repo to GitHub.
+2. In Render, create a new Blueprint from this repository.
+3. Render will detect `render.yaml`.
+4. Fill the secret values Render asks for:
+
+```env
+ADMIN_PASSWORD=choose-a-temporary-testing-password
+PAYFAST_MERCHANT_ID=10000100
+PAYFAST_MERCHANT_KEY=46f0cd694581a
+PAYFAST_PASSPHRASE=
+RESEND_API_KEY=
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+For the current testing phase, email, Supabase, and real payment credentials can
+remain empty. Email sends will be logged as skipped when Resend is not configured.
+
+Expected testing URL:
+
+```text
+https://cape-town-spurs-registration-test.onrender.com
+```
+
+If Render changes the service URL, update these Render environment variables to
+match the final URL:
+
+```env
+CLIENT_URL
+PUBLIC_API_URL
+PAYMENT_RETURN_URL
+PAYMENT_CANCEL_URL
+LOCAL_STORAGE_BASE_URL
 ```

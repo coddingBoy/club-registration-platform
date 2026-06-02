@@ -1,67 +1,158 @@
-export type RegistrationFormValues = {
+export type AppTab =
+  | "player"
+  | "admin"
+  | "onboarding"
+  | "general-member"
+  | "holiday-camp"
+  | "meet-greet"
+  | "urban-lounge"
+  | "club-event"
+  | "match-tickets";
+
+export type ProgrammeCategory =
+  | "programme"
+  | "event"
+  | "camp"
+  | "meet-greet"
+  | "ticket";
+
+export type Programme = {
+  id: string;
+  title: string;
+  category: ProgrammeCategory;
+  registrationFee: number;
+  monthlyFee: number;
+  description: string;
+  requiresAuthorisation: boolean;
+  capacity: number;
+  registeredCount: number;
+};
+
+export type Fee = {
+  id: string;
+  label: string;
+  amount: number;
+  note: string;
+};
+
+export type MockPlayer = {
+  id: string;
+  membershipNumber: string;
+  passportNumber: string;
+  name: string;
+  surname: string;
+  ageGroup: string;
+  programmeId: string;
+  status: "current" | "trial-success" | "trial-pending";
+  guardianEmail: string;
+};
+
+export type PlayerRegistration = {
+  path: "renewal" | "trial";
+  renewalCode?: string;
+};
+
+export type TrialRegistration = {
   playerName: string;
   playerSurname: string;
   dateOfBirth: string;
-  birthYearCategory: string;
-  idPassportNumber: string;
-  birthCertificate: File | null;
-  gender: string;
-  kitSize: string;
-  socksSize: string;
-  parentName: string;
-  parentSurname: string;
-  relationToPlayer: string;
-  streetAddress: string;
-  city: string;
-  province: string;
-  contactNumber: string;
-  email: string;
-  confirmEmail: string;
-  medicalAidName: string;
-  medicalAidNumber: string;
-  mainMemberName: string;
-  mainMemberContactNumber: string;
-  emergencyContactName: string;
-  emergencyRelationToPlayer: string;
-  emergencyContactNumber: string;
-  allergiesOrConditions: string;
-  consent: boolean;
+  guardianName: string;
+  guardianEmail: string;
+  guardianPhone: string;
 };
 
-export type FormErrors = Partial<Record<keyof RegistrationFormValues, string>>;
+export type TrialApplicationStatus =
+  | "payment-pending"
+  | "paid"
+  | "successful"
+  | "unsuccessful";
 
-export type Option = {
-  label: string;
-  value: string;
+export type TrialApplication = TrialRegistration & {
+  id: string;
+  submittedAt: string;
+  status: TrialApplicationStatus;
+  paymentConfirmed: boolean;
+  authorisationCode?: string;
 };
 
-export type PlayerAccount = {
+export type GeneratedCode = {
+  id: string;
+  code: string;
+  playerName: string;
+  playerEmail: string;
+  type: "trial-authorisation" | "renewal";
+  membershipNumber?: string;
+  used: boolean;
+  emailSentAt?: string;
+};
+
+export type OnboardingRegistration = {
+  authorisationCode: string;
+  membershipNumber: string;
+  programmeId: string;
   playerName: string;
   playerSurname: string;
   idNumber: string;
-  dateOfBirth: string;
-  age: number | null;
-  gender: string;
   guardianName: string;
   guardianEmail: string;
-  guardianCell: string;
-  medicalAidDetails: string;
-  emergencyContact: string;
-  allergiesOrConditions: string;
-  notifications: string[];
-  password: string;
-  passportNumber: string;
+  debitOrderAccepted: boolean;
+  codeOfConductAccepted: boolean;
+  paymentOption: "monthly-debit-order" | "annual-upfront";
 };
 
-export type ProgrammeType = "academy" | "foundation" | "holiday-camp" | "trial";
+export type OnboardingCompletion = {
+  id: string;
+  completedAt: string;
+  passportNumber: string;
+  programmeId: string;
+  programmeTitle: string;
+  playerName: string;
+  playerSurname: string;
+  guardianEmail: string;
+  codeUsed: string;
+  codeType: "trial-authorisation" | "renewal";
+  trialCredit: number;
+  amountPaid: number;
+  paymentOption: "monthly-debit-order" | "annual-upfront";
+  confirmationEmail: string;
+};
 
-export type Programme = {
-  id: ProgrammeType;
+export type SimpleRegistrationType =
+  | "general-member"
+  | "holiday-camp"
+  | "meet-greet"
+  | "urban-lounge"
+  | "club-event"
+  | "match-tickets";
+
+export type SimpleRegistrationField = {
+  name: string;
+  label: string;
+  type: "text" | "date" | "number" | "select" | "textarea";
+  required?: boolean;
+  options?: string[];
+};
+
+export type SimpleRegistrationConfig = {
+  type: SimpleRegistrationType;
   title: string;
-  category: string;
-  price: string;
-  description: string;
-  requiresTrial: boolean;
-  placesAvailable: number;
-  capacity: number;
+  intro: string;
+  referencePrefix: string;
+  dateOfBirthRelevant: boolean;
+  parentGuardianRelevant: boolean;
+  fields: SimpleRegistrationField[];
+};
+
+export type SimpleRegistrationRecord = {
+  id: string;
+  type: SimpleRegistrationType;
+  referenceNumber: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  dateOfBirth?: string;
+  parentGuardian?: string;
+  specificFields: Record<string, string>;
+  submittedAt: string;
+  emailSimulatedAt: string;
 };

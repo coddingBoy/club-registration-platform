@@ -1,0 +1,66 @@
+services:
+  - type: web
+    name: cape-town-spurs-registration-test
+    runtime: node
+    plan: free
+    buildCommand: npm --prefix backend ci && npm --prefix frontend ci && npm --prefix backend run prisma:generate && VITE_BASE_PATH=/ npm --prefix frontend run build
+    startCommand: cd backend && npx prisma migrate deploy && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cape-town-spurs-registration-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 1d
+      - key: ADMIN_EMAIL
+        value: admin@soccerschool.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CLIENT_URL
+        value: https://cape-town-spurs-registration-test.onrender.com
+      - key: PUBLIC_API_URL
+        value: https://cape-town-spurs-registration-test.onrender.com
+      - key: PAYMENT_RETURN_URL
+        value: https://cape-town-spurs-registration-test.onrender.com/payment/success
+      - key: PAYMENT_CANCEL_URL
+        value: https://cape-town-spurs-registration-test.onrender.com/payment/cancel
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: Cape Town Spurs <onboarding@resend.dev>
+      - key: ADMIN_NOTIFICATION_EMAIL
+        value: admin@soccerschool.com
+      - key: PAYMENT_PROVIDER
+        value: payfast
+      - key: PAYFAST_MERCHANT_ID
+        sync: false
+      - key: PAYFAST_MERCHANT_KEY
+        sync: false
+      - key: PAYFAST_PASSPHRASE
+        sync: false
+      - key: PAYFAST_PROCESS_URL
+        value: https://sandbox.payfast.co.za/eng/process
+      - key: STORAGE_PROVIDER
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: cape-town-spurs-documents
+      - key: LOCAL_STORAGE_BASE_URL
+        value: https://cape-town-spurs-registration-test.onrender.com
+      - key: CODE_EXPIRY_DAYS
+        value: 30
+
+databases:
+  - name: cape-town-spurs-registration-db
+    plan: free

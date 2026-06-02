@@ -3,7 +3,7 @@ const path = require("path");
 const multer = require("multer");
 const AppError = require("../utils/appError");
 
-const uploadDirectory = path.join(process.cwd(), "uploads", "proofs");
+const uploadDirectory = path.join(process.cwd(), "uploads", "documents");
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
 const storage = multer.diskStorage({
