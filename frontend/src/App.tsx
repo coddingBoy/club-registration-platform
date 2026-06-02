@@ -43,8 +43,9 @@ const storageKeys = {
 };
 
 function App() {
+  const testAdminEnabled = import.meta.env.VITE_ENABLE_TEST_ADMIN === "true";
   const adminEnabled =
-    import.meta.env.DEV &&
+    (import.meta.env.DEV || testAdminEnabled) &&
     new URLSearchParams(window.location.search).get("admin") === "true";
   const tabs = adminEnabled
     ? [

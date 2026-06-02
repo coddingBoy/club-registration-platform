@@ -3,7 +3,7 @@ services:
     name: cape-town-spurs-registration-test
     runtime: node
     plan: free
-    buildCommand: npm --prefix backend ci --include=dev && npm --prefix frontend ci --include=dev && npm --prefix backend run prisma:generate && VITE_BASE_PATH=/ npm --prefix frontend run build
+    buildCommand: npm --prefix backend ci --include=dev && npm --prefix frontend ci --include=dev && npm --prefix backend run prisma:generate && VITE_BASE_PATH=/ VITE_ENABLE_TEST_ADMIN=true npm --prefix frontend run build
     startCommand: cd backend && npx prisma migrate deploy && npm start
     envVars:
       - key: NODE_ENV
