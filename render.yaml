@@ -37,7 +37,7 @@ services:
       - key: EMAIL_FROM
         value: Cape Town Spurs <onboarding@resend.dev>
       - key: ADMIN_NOTIFICATION_EMAIL
-        value: kiamkiet_tsyu@hotmail.com
+        value: tsyukiamkiet@gmail.com
       - key: PAYMENT_PROVIDER
         value: payfast
       - key: PAYFAST_MERCHANT_ID

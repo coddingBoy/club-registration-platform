@@ -42,7 +42,7 @@ Expected response:
 Admin notification recipient:
 
 ```env
-ADMIN_NOTIFICATION_EMAIL=kiamkiet_tsyu@hotmail.com
+ADMIN_NOTIFICATION_EMAIL=tsyukiamkiet@gmail.com
 ```
 
 Real email delivery still requires `RESEND_API_KEY` and a valid `EMAIL_FROM`
