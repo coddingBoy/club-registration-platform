@@ -1,5 +1,29 @@
 export const apiBaseUrl = import.meta.env.VITE_API_URL || "";
 
+export async function loginAdmin(payload: { email: string; password: string }) {
+  const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Admin login failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    token: string;
+    admin: {
+      id?: string;
+      email: string;
+      role: string;
+    };
+  }>;
+}
+
 export async function getBackendHealth() {
   const response = await fetch(`${apiBaseUrl}/api/health`);
 

@@ -662,6 +662,33 @@ input[type="file"] {
   gap: 0.75rem;
 }
 
+.admin-session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #d9dce2;
+  background: #ffffff;
+}
+
+.admin-session-bar div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.admin-session-bar span,
+.admin-session-bar small {
+  color: #545b67;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.admin-session-bar strong {
+  color: #11151c;
+}
+
 .backend-note {
   border-left: 4px solid #c1121f;
   background: #fff4f5;

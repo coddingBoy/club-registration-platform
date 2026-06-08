@@ -35,6 +35,15 @@ export type Fee = {
   note: string;
 };
 
+export type AdminSession = {
+  token: string;
+  admin: {
+    id?: string;
+    email: string;
+    role: string;
+  };
+};
+
 export type MockPlayer = {
   id: string;
   membershipNumber: string;

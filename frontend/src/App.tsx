@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AdminLogin from "./components/AdminLogin";
 import AdminPanel from "./components/AdminPanel";
 import BackendStatus from "./components/BackendStatus";
 import Layout from "./components/Layout";
@@ -9,6 +10,7 @@ import UrbanWarriorOnboarding from "./components/UrbanWarriorOnboarding";
 import { getSimpleRegistrationForm } from "./data/registrationForms";
 import { programmes } from "./data/programmes";
 import type {
+  AdminSession,
   AppTab,
   GeneratedCode,
   OnboardingCompletion,
@@ -32,10 +34,12 @@ const publicTabs: Array<{ id: AppTab; label: string }> = [
   { id: "urban-lounge", label: "Urban Lounge Event" },
   { id: "club-event", label: "Club Event" },
   { id: "match-tickets", label: "Match Tickets" },
+  { id: "admin", label: "Admin" },
 ];
 
 const storageKeys = {
   activeTab: "cts-active-tab",
+  adminSession: "cts-admin-session",
   generatedCodes: "cts-generated-codes",
   trialApplications: "cts-trial-applications",
   simpleRegistrations: "cts-simple-registrations",
@@ -43,19 +47,11 @@ const storageKeys = {
 };
 
 function App() {
-  const testAdminEnabled = import.meta.env.VITE_ENABLE_TEST_ADMIN === "true";
-  const adminEnabled =
-    (import.meta.env.DEV || testAdminEnabled) &&
-    new URLSearchParams(window.location.search).get("admin") === "true";
-  const tabs = adminEnabled
-    ? [
-        ...publicTabs.slice(0, 1),
-        { id: "admin" as const, label: "Admin Codes" },
-        ...publicTabs.slice(1),
-      ]
-    : publicTabs;
   const [activeTab, setActiveTab] = useState<AppTab>(() =>
-    normalizeStoredTab(loadFromStorage(storageKeys.activeTab, "player"), adminEnabled),
+    normalizeStoredTab(loadFromStorage(storageKeys.activeTab, "player")),
+  );
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(() =>
+    loadFromStorage<AdminSession | null>(storageKeys.adminSession, null),
   );
   const [generatedCodes, setGeneratedCodes] = useState<GeneratedCode[]>(() =>
     loadFromStorage(storageKeys.generatedCodes, []),
@@ -75,6 +71,10 @@ function App() {
   useEffect(() => {
     saveToStorage(storageKeys.generatedCodes, generatedCodes);
   }, [generatedCodes]);
+
+  useEffect(() => {
+    saveToStorage(storageKeys.adminSession, adminSession);
+  }, [adminSession]);
 
   useEffect(() => {
     let active = true;
@@ -156,10 +156,14 @@ function App() {
     ? getSimpleRegistrationForm(activeTab)
     : undefined;
 
+  const logoutAdmin = () => {
+    setAdminSession(null);
+  };
+
   return (
     <Layout>
       <section className="flow-main">
-        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+        <Tabs tabs={publicTabs} activeTab={activeTab} onChange={setActiveTab} />
 
         {activeTab === "player" && (
           <PlayerRegistration
@@ -168,16 +172,33 @@ function App() {
           />
         )}
 
-        {activeTab === "admin" && adminEnabled && (
-          <AdminPanel
-            codes={generatedCodes}
-            trialApplications={trialApplications}
-            simpleRegistrations={simpleRegistrations}
-            onboardingCompletions={onboardingCompletions}
-            onGenerateRenewalCode={addGeneratedCode}
-            onReviewTrial={reviewTrialApplication}
-            onSimulateEmailSent={simulateEmailSent}
-          />
+        {activeTab === "admin" && (
+          <>
+            {!adminSession && <AdminLogin onLogin={setAdminSession} />}
+            {adminSession && (
+              <section className="admin-session-bar">
+                <div>
+                  <span>Signed in as</span>
+                  <strong>{adminSession.admin.email}</strong>
+                  <small>{adminSession.admin.role}</small>
+                </div>
+                <button className="secondary-button" type="button" onClick={logoutAdmin}>
+                  Sign Out
+                </button>
+              </section>
+            )}
+            {adminSession && (
+              <AdminPanel
+                codes={generatedCodes}
+                trialApplications={trialApplications}
+                simpleRegistrations={simpleRegistrations}
+                onboardingCompletions={onboardingCompletions}
+                onGenerateRenewalCode={addGeneratedCode}
+                onReviewTrial={reviewTrialApplication}
+                onSimulateEmailSent={simulateEmailSent}
+              />
+            )}
+          </>
         )}
 
         {activeTab === "onboarding" && (
@@ -268,20 +289,13 @@ function mapDatabaseSimpleRegistration(
   };
 }
 
-function normalizeStoredTab(
-  tab: AppTab | "general" | "trial" | "programmes",
-  adminEnabled: boolean,
-): AppTab {
+function normalizeStoredTab(tab: AppTab | "general" | "trial" | "programmes"): AppTab {
   if (tab === "general" || tab === "trial") {
     return "player";
   }
 
   if (tab === "programmes") {
     return "general-member";
-  }
-
-  if (tab === "admin" && !adminEnabled) {
-    return "player";
   }
 
   return tab;

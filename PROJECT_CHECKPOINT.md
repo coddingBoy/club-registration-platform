@@ -48,22 +48,20 @@ ADMIN_NOTIFICATION_EMAIL=tsyukiamkiet@gmail.com
 Real email delivery still requires `RESEND_API_KEY` and a valid `EMAIL_FROM`
 sender/domain configuration.
 
-## Temporary Admin Access
+## Admin Access
 
-For Render testing only, the admin tab is enabled by build-time flag:
+The frontend now shows a normal `Admin` tab. Users must sign in through the
+admin login form before the admin dashboard is shown.
 
-```env
-VITE_ENABLE_TEST_ADMIN=true
-```
-
-Open admin test view:
+Admin login endpoint:
 
 ```text
-https://cape-town-spurs-registration-test.onrender.com/?admin=true
+POST /api/auth/login
 ```
 
-This is not production-safe. Before production, remove query-string admin access
-and implement a proper admin login UI/token flow.
+The frontend stores the returned JWT session locally and provides a sign-out
+button. Temporary `?admin=true` access and the `VITE_ENABLE_TEST_ADMIN` build flag
+have been removed.
 
 ## Backend
 
@@ -106,6 +104,7 @@ Important frontend files:
 - `frontend/src/components/PlayerRegistration.tsx`
 - `frontend/src/components/TrialRegistration.tsx`
 - `frontend/src/components/UrbanWarriorOnboarding.tsx`
+- `frontend/src/components/AdminLogin.tsx`
 - `frontend/src/components/AdminPanel.tsx`
 - `frontend/src/components/PlaceholderForm.tsx`
 
@@ -141,22 +140,18 @@ The PayFast real confirmation flow is scaffolded but not production-ready.
 
 ## Still Prototype / Not Production-Ready
 
-- Admin frontend still uses temporary `?admin=true` access for testing.
 - Admin panel actions are not fully wired through authenticated frontend tokens.
 - Real PayFast payment confirmation is not finalized for production.
 - Real email delivery needs provider credentials/domain setup.
 - Document upload storage needs Supabase or S3 production credentials.
-- Frontend auth/session management still needs production implementation.
+- Admin login UI exists; admin dashboard API actions still need token wiring.
 - Production domain and environment variables still need final setup.
 
 ## Production Integration Next Steps
 
-1. Add admin login page.
-2. Store and attach JWT token for admin API calls.
-3. Remove `VITE_ENABLE_TEST_ADMIN=true` and query-string admin access.
-4. Wire admin panel buttons to backend APIs using auth token.
-5. Configure real email provider.
-6. Configure real storage provider.
-7. Configure real payment gateway callbacks/webhooks.
-8. Set production domain and final Render environment variables.
-9. Run full end-to-end test with boss/client.
+1. Wire admin panel buttons to backend APIs using the stored auth token.
+2. Configure real email provider.
+3. Configure real storage provider.
+4. Configure real payment gateway callbacks/webhooks.
+5. Set production domain and final Render environment variables.
+6. Run full end-to-end test with boss/client.
