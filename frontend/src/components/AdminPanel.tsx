@@ -137,20 +137,11 @@ function AdminPanel({
     <section className="form-card">
       <div className="intro-panel">
         <p>
-          Admin tools are still running on localStorage. This is now complex enough
-          that backend planning should start for database, auth, email, payments,
-          document storage, and audit logs.
+          Review trial applications, manage renewal codes, and monitor registration
+          activity.
         </p>
       </div>
       <div className="checkout-panel">
-        <div className="backend-note">
-          <strong>Backend planning checkpoint</strong>
-          <p>
-            LocalStorage is useful for this MVP, but admin search, bulk actions,
-            code usage, exports, and completion status should move to a backend.
-          </p>
-        </div>
-
         <div className="admin-toolbar">
           <input
             aria-label="Search players"
