@@ -17,6 +17,7 @@ import type {
   SimpleRegistrationRecord,
   SimpleRegistrationType,
   TrialApplication,
+  TrialOnboardingCredentials,
 } from "./types";
 import {
   getSimpleRegistrations,
@@ -25,15 +26,15 @@ import {
 import { loadFromStorage, saveToStorage } from "./utils/storage";
 import { formatCurrency } from "./utils/validation";
 
-const publicTabs: Array<{ id: AppTab; label: string }> = [
+const publicTabs: Array<{ id: AppTab; label: string; disabled?: boolean }> = [
   { id: "player", label: "Player Registration" },
   { id: "onboarding", label: "Urban Warrior Onboarding" },
-  { id: "general-member", label: "General Member" },
-  { id: "holiday-camp", label: "Holiday Camp" },
-  { id: "meet-greet", label: "Meet & Greet" },
-  { id: "urban-lounge", label: "Urban Lounge Event" },
-  { id: "club-event", label: "Club Event" },
-  { id: "match-tickets", label: "Match Tickets" },
+  { id: "general-member", label: "General Member", disabled: true },
+  { id: "holiday-camp", label: "Holiday Camp", disabled: true },
+  { id: "meet-greet", label: "Meet & Greet", disabled: true },
+  { id: "urban-lounge", label: "Urban Lounge Event", disabled: true },
+  { id: "club-event", label: "Club Event", disabled: true },
+  { id: "match-tickets", label: "Match Tickets", disabled: true },
   { id: "admin", label: "Admin" },
 ];
 
@@ -63,6 +64,8 @@ function App() {
   const [onboardingCompletions, setOnboardingCompletions] = useState<
     OnboardingCompletion[]
   >(() => loadFromStorage(storageKeys.onboardingCompletions, []));
+  const [onboardingPrefill, setOnboardingPrefill] =
+    useState<TrialOnboardingCredentials | null>(null);
 
   useEffect(() => {
     saveToStorage(storageKeys.activeTab, activeTab);
@@ -98,42 +101,8 @@ function App() {
     saveToStorage(storageKeys.onboardingCompletions, onboardingCompletions);
   }, [onboardingCompletions]);
 
-  const addGeneratedCode = (code: GeneratedCode) => {
-    setGeneratedCodes((current) => [code, ...current]);
-  };
-
-  const simulateEmailSent = (codeId: string) => {
-    setGeneratedCodes((current) =>
-      current.map((code) =>
-        code.id === codeId ? { ...code, emailSentAt: new Date().toISOString() } : code,
-      ),
-    );
-  };
-
   const addTrialApplication = (application: TrialApplication) => {
     setTrialApplications((current) => [application, ...current]);
-  };
-
-  const reviewTrialApplication = (
-    applicationId: string,
-    status: "successful" | "unsuccessful",
-    code?: GeneratedCode,
-  ) => {
-    setTrialApplications((current) =>
-      current.map((application) =>
-        application.id === applicationId
-          ? {
-              ...application,
-              status,
-              authorisationCode: code?.code ?? application.authorisationCode,
-            }
-          : application,
-      ),
-    );
-
-    if (code) {
-      addGeneratedCode(code);
-    }
   };
 
   const markCodeAsUsed = (codeValue: string) => {
@@ -168,6 +137,7 @@ function App() {
         {activeTab === "player" && (
           <PlayerRegistration
             onTrialApplicationSaved={addTrialApplication}
+            onTrialCredentialsIssued={setOnboardingPrefill}
             onContinueToOnboarding={() => setActiveTab("onboarding")}
           />
         )}
@@ -189,13 +159,9 @@ function App() {
             )}
             {adminSession && (
               <AdminPanel
-                codes={generatedCodes}
                 trialApplications={trialApplications}
                 simpleRegistrations={simpleRegistrations}
                 onboardingCompletions={onboardingCompletions}
-                onGenerateRenewalCode={addGeneratedCode}
-                onReviewTrial={reviewTrialApplication}
-                onSimulateEmailSent={simulateEmailSent}
               />
             )}
           </>
@@ -203,7 +169,13 @@ function App() {
 
         {activeTab === "onboarding" && (
           <UrbanWarriorOnboarding
+            key={
+              onboardingPrefill
+                ? `${onboardingPrefill.authorisationCode}-${onboardingPrefill.membershipNumber}`
+                : "manual-onboarding"
+            }
             codes={generatedCodes}
+            prefill={onboardingPrefill}
             onUseCode={markCodeAsUsed}
             onComplete={addOnboardingCompletion}
           />
@@ -261,6 +233,7 @@ function mapDatabaseTrial(trial: Awaited<ReturnType<typeof getTrialApplications>
     status: mapTrialStatus(trial.status),
     paymentConfirmed: trial.status !== "PAYMENT_PENDING",
     authorisationCode: trial.authorisationCode?.code,
+    membershipNumber: trial.authorisationCode?.membershipNumber ?? undefined,
   };
 }
 
@@ -295,10 +268,18 @@ function normalizeStoredTab(tab: AppTab | "general" | "trial" | "programmes"): A
   }
 
   if (tab === "programmes") {
-    return "general-member";
+    return "player";
+  }
+
+  if (isDisabledTab(tab)) {
+    return "player";
   }
 
   return tab;
+}
+
+function isDisabledTab(tab: AppTab) {
+  return publicTabs.some((item) => item.id === tab && item.disabled);
 }
 
 function isSimpleRegistrationTab(tab: AppTab): tab is SimpleRegistrationType {

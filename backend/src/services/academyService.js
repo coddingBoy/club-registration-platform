@@ -19,6 +19,21 @@ const documentTypes = new Set([
 ]);
 
 const generateCode = (prefix) => `${prefix}-${Math.floor(100000 + Math.random() * 900000)}`;
+const generateUniqueCode = async (client, prefix, field = "code") => {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const candidate = generateCode(prefix);
+    const existing =
+      field === "membershipNumber"
+        ? await client.player.findUnique({ where: { membershipNumber: candidate } })
+        : await client.oneTimeCode.findUnique({ where: { code: candidate } });
+
+    if (!existing) {
+      return candidate;
+    }
+  }
+
+  throw new AppError(`Could not generate a unique ${field}`, 500);
+};
 const getCodeExpiryDate = () => {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + env.codeExpiryDays);
@@ -71,33 +86,78 @@ const createTrialApplication = async (payload) => {
     },
   });
 
-  const trialApplication = await prisma.trialApplication.create({
-    data: {
-      playerName: payload.playerName,
-      playerSurname: payload.playerSurname,
-      dateOfBirth: payload.dateOfBirth ? new Date(payload.dateOfBirth) : null,
-      guardianName: payload.guardianName,
-      guardianEmail: payload.guardianEmail,
-      guardianPhone: payload.guardianPhone,
-      trialFeeAmount,
-      status: "PAYMENT_PENDING",
-      paymentId: payment.id,
-    },
+  const { trialApplication, player, code } = await prisma.$transaction(async (tx) => {
+    const membershipNumber = await generateUniqueCode(tx, "MEM", "membershipNumber");
+    const player = await tx.player.create({
+      data: {
+        membershipNumber,
+        firstName: payload.playerName,
+        surname: payload.playerSurname,
+        dateOfBirth: payload.dateOfBirth ? new Date(payload.dateOfBirth) : null,
+        guardianName: payload.guardianName,
+        guardianEmail: payload.guardianEmail,
+        guardianPhone: payload.guardianPhone,
+        status: "TRIAL_SUCCESSFUL",
+      },
+    });
+
+    const trialApplication = await tx.trialApplication.create({
+      data: {
+        playerId: player.id,
+        playerName: payload.playerName,
+        playerSurname: payload.playerSurname,
+        dateOfBirth: payload.dateOfBirth ? new Date(payload.dateOfBirth) : null,
+        guardianName: payload.guardianName,
+        guardianEmail: payload.guardianEmail,
+        guardianPhone: payload.guardianPhone,
+        trialFeeAmount,
+        status: "SUCCESSFUL",
+        paymentId: payment.id,
+      },
+    });
+
+    const code = await tx.oneTimeCode.create({
+      data: {
+        code: await generateUniqueCode(tx, "TRIAL-AUTH"),
+        type: "TRIAL_AUTHORISATION",
+        playerId: player.id,
+        trialApplicationId: trialApplication.id,
+        membershipNumber,
+        email: trialApplication.guardianEmail,
+        expiresAt: getCodeExpiryDate(),
+      },
+    });
+
+    return { trialApplication, player, code };
   });
 
   await createEmailLog(prisma, {
     to: trialApplication.guardianEmail,
     subject: "Cape Town Spurs trial application received",
-    body: `We received the trial application for ${trialApplication.playerName} ${trialApplication.playerSurname}. Please complete the R${trialFeeAmount} trial payment.`,
+    body: `We received the trial application for ${trialApplication.playerName} ${trialApplication.playerSurname}. Your Urban Warrior onboarding authorisation code is ${code.code}. Membership number: ${player.membershipNumber}.`,
+    codeId: code.id,
   });
 
   await createEmailLog(prisma, {
     to: env.adminNotificationEmail,
     subject: "New Cape Town Spurs trial application",
-    body: `${trialApplication.playerName} ${trialApplication.playerSurname} submitted a trial application. Payment is pending gateway confirmation.`,
+    body: `${trialApplication.playerName} ${trialApplication.playerSurname} submitted a trial application. Authorisation code ${code.code} and membership number ${player.membershipNumber} were generated for onboarding.`,
+    codeId: code.id,
   });
 
-  return { trialApplication, payment, checkout };
+  return {
+    trialApplication,
+    payment,
+    checkout,
+    onboardingCredentials: {
+      authorisationCode: code.code,
+      membershipNumber: player.membershipNumber,
+      playerName: trialApplication.playerName,
+      playerSurname: trialApplication.playerSurname,
+      guardianName: trialApplication.guardianName,
+      guardianEmail: trialApplication.guardianEmail,
+    },
+  };
 };
 
 const createSimpleRegistration = async (payload) => {

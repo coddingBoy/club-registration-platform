@@ -5,6 +5,7 @@ import type {
   GeneratedCode,
   OnboardingCompletion,
   OnboardingRegistration,
+  TrialOnboardingCredentials,
 } from "../types";
 import { postOnboarding, validateCode } from "../utils/api";
 import { formatCurrency, isEmail, isRequired } from "../utils/validation";
@@ -12,6 +13,7 @@ import FormField from "./FormField";
 
 type UrbanWarriorOnboardingProps = {
   codes: GeneratedCode[];
+  prefill?: TrialOnboardingCredentials | null;
   onUseCode: (code: string) => void;
   onComplete: (record: OnboardingCompletion) => void;
 };
@@ -40,12 +42,25 @@ const steps = [
 
 function UrbanWarriorOnboarding({
   codes,
+  prefill,
   onUseCode,
   onComplete,
 }: UrbanWarriorOnboardingProps) {
-  const [values, setValues] = useState(initialValues);
+  const [values, setValues] = useState<OnboardingRegistration>(() => ({
+    ...initialValues,
+    authorisationCode: prefill?.authorisationCode ?? "",
+    membershipNumber: prefill?.membershipNumber ?? "",
+    playerName: prefill?.playerName ?? "",
+    playerSurname: prefill?.playerSurname ?? "",
+    guardianName: prefill?.guardianName ?? "",
+    guardianEmail: prefill?.guardianEmail ?? "",
+  }));
   const [step, setStep] = useState(0);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(
+    prefill
+      ? "Trial application details have been filled in. Complete the remaining required fields."
+      : "",
+  );
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const [passportNumber, setPassportNumber] = useState("");
   const [validatedCodeType, setValidatedCodeType] = useState<

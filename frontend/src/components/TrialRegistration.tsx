@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { fees } from "../data/fees";
 import type {
   TrialApplication,
+  TrialOnboardingCredentials,
   TrialRegistration as TrialRegistrationData,
 } from "../types";
 import { postTrialApplication } from "../utils/api";
@@ -16,6 +17,7 @@ import FormField from "./FormField";
 
 type TrialRegistrationProps = {
   onApplicationSaved: (application: TrialApplication) => void;
+  onCredentialsIssued: (credentials: TrialOnboardingCredentials) => void;
 };
 
 const trialFee = fees.find((fee) => fee.id === "trial");
@@ -29,7 +31,10 @@ const initialValues: TrialRegistrationData = {
   guardianPhone: "",
 };
 
-function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
+function TrialRegistration({
+  onApplicationSaved,
+  onCredentialsIssued,
+}: TrialRegistrationProps) {
   const [values, setValues] = useState(initialValues);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,19 +76,35 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
 
     try {
       const result = await postTrialApplication(values);
+
+      if (!result.onboardingCredentials) {
+        throw new Error(
+          "Trial saved, but the backend did not return onboarding credentials. Restart the backend server and try again.",
+        );
+      }
+
       const application: TrialApplication = {
         ...values,
         id: result.trialApplication.id,
         submittedAt: result.trialApplication.createdAt,
         status: mapTrialStatus(result.trialApplication.status),
-        paymentConfirmed: result.payment.status === "PAID",
+        paymentConfirmed: true,
+        authorisationCode: result.onboardingCredentials.authorisationCode,
+        membershipNumber: result.onboardingCredentials.membershipNumber,
       };
 
       onApplicationSaved(application);
+      onCredentialsIssued({
+        ...result.onboardingCredentials,
+        playerName: result.onboardingCredentials.playerName || values.playerName,
+        playerSurname: result.onboardingCredentials.playerSurname || values.playerSurname,
+        guardianName: result.onboardingCredentials.guardianName || values.guardianName,
+        guardianEmail: result.onboardingCredentials.guardianEmail || values.guardianEmail,
+      });
       setValues(initialValues);
       setPaymentConfirmed(false);
       setMessage(
-        `Trial application sent to backend. Payment checkout created: ${result.payment.id}.`,
+        "Trial application saved. Authorisation details generated and sent to onboarding.",
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Trial application failed.");

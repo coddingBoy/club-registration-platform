@@ -77,6 +77,14 @@ export async function postTrialApplication(payload: {
       checkoutUrl: string;
       fields: Record<string, string>;
     };
+    onboardingCredentials?: {
+      authorisationCode: string;
+      membershipNumber: string;
+      playerName?: string;
+      playerSurname?: string;
+      guardianName?: string;
+      guardianEmail?: string;
+    };
   }>;
 }
 
@@ -98,7 +106,7 @@ export async function getTrialApplications() {
       guardianPhone: string;
       status: "PAYMENT_PENDING" | "PAID" | "SUCCESSFUL" | "UNSUCCESSFUL";
       createdAt: string;
-      authorisationCode?: { code: string } | null;
+      authorisationCode?: { code: string; membershipNumber?: string | null } | null;
     }>
   >;
 }

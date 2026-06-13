@@ -3,6 +3,7 @@ import type { AppTab } from "../types";
 type TabItem = {
   id: AppTab;
   label: string;
+  disabled?: boolean;
 };
 
 type TabsProps = {
@@ -17,6 +18,7 @@ function Tabs({ tabs, activeTab, onChange }: TabsProps) {
       {tabs.map((tab) => (
         <button
           className={activeTab === tab.id ? "active" : ""}
+          disabled={tab.disabled}
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}

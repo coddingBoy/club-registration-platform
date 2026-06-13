@@ -1,105 +1,30 @@
-import { useMemo, useState } from "react";
-import { mockPlayers } from "../data/mockPlayers";
-import { programmes } from "../data/programmes";
 import type {
-  GeneratedCode,
   OnboardingCompletion,
   SimpleRegistrationRecord,
   TrialApplication,
 } from "../types";
-import { generateRenewalCode, generateTrialAuthorisationCode } from "../utils/codeGenerator";
 
 type AdminPanelProps = {
-  codes: GeneratedCode[];
   trialApplications: TrialApplication[];
   simpleRegistrations: SimpleRegistrationRecord[];
   onboardingCompletions: OnboardingCompletion[];
-  onGenerateRenewalCode: (code: GeneratedCode) => void;
-  onReviewTrial: (
-    applicationId: string,
-    status: "successful" | "unsuccessful",
-    code?: GeneratedCode,
-  ) => void;
-  onSimulateEmailSent: (codeId: string) => void;
 };
 
 function AdminPanel({
-  codes,
   trialApplications,
   simpleRegistrations,
   onboardingCompletions,
-  onGenerateRenewalCode,
-  onReviewTrial,
-  onSimulateEmailSent,
 }: AdminPanelProps) {
-  const [selectedPlayerId, setSelectedPlayerId] = useState(mockPlayers[0]?.id ?? "");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [programmeFilter, setProgrammeFilter] = useState("all");
-  const [ageGroupFilter, setAgeGroupFilter] = useState("all");
-
-  const filteredPlayers = useMemo(
-    () =>
-      mockPlayers
-        .filter((player) => player.status === "current")
-        .filter((player) => {
-          const searchable = `${player.name} ${player.surname} ${player.membershipNumber} ${player.guardianEmail}`.toLowerCase();
-          return searchable.includes(searchTerm.toLowerCase());
-        })
-        .filter((player) =>
-          programmeFilter === "all" ? true : player.programmeId === programmeFilter,
-        )
-        .filter((player) =>
-          ageGroupFilter === "all" ? true : player.ageGroup === ageGroupFilter,
-        ),
-    [ageGroupFilter, programmeFilter, searchTerm],
-  );
-  const selectedPlayer = mockPlayers.find((player) => player.id === selectedPlayerId);
-  const ageGroups = Array.from(new Set(mockPlayers.map((player) => player.ageGroup)));
-
-  const createRenewalCode = (player: (typeof mockPlayers)[number]) => {
-    onGenerateRenewalCode({
-      id: crypto.randomUUID(),
-      code: generateRenewalCode(),
-      playerName: `${player.name} ${player.surname}`,
-      playerEmail: player.guardianEmail,
-      type: "renewal",
-      membershipNumber: player.membershipNumber,
-      used: false,
-    });
-  };
-
-  const generateCode = () => {
-    if (!selectedPlayer) return;
-    createRenewalCode(selectedPlayer);
-  };
-
-  const bulkGenerateRenewalCodes = () => {
-    filteredPlayers.forEach(createRenewalCode);
-  };
-
-  const markTrialSuccessful = (application: TrialApplication) => {
-    const code: GeneratedCode = {
-      id: crypto.randomUUID(),
-      code: generateTrialAuthorisationCode(),
-      playerName: `${application.playerName} ${application.playerSurname}`,
-      playerEmail: application.guardianEmail,
-      type: "trial-authorisation",
-      used: false,
-    };
-
-    onReviewTrial(application.id, "successful", code);
-  };
-
   const exportCsv = () => {
     const rows = [
-      ["type", "name", "email", "reference", "status", "programme", "submittedOrCompletedAt"],
+      ["type", "name", "email", "reference", "status", "programmeOrMembership", "submittedOrCompletedAt"],
       ...trialApplications.map((application) => [
         "trial",
         `${application.playerName} ${application.playerSurname}`,
         application.guardianEmail,
         application.authorisationCode ?? "",
-        application.status,
-        "",
+        getTrialStatusLabel(application.status),
+        application.membershipNumber ?? "",
         application.submittedAt,
       ]),
       ...simpleRegistrations.map((registration) => [
@@ -107,7 +32,7 @@ function AdminPanel({
         registration.fullName,
         registration.email,
         registration.referenceNumber,
-        "submitted",
+        "Submitted",
         "",
         registration.submittedAt,
       ]),
@@ -116,7 +41,7 @@ function AdminPanel({
         `${completion.playerName} ${completion.playerSurname}`,
         completion.guardianEmail,
         completion.passportNumber,
-        "completed",
+        "Completed",
         completion.programmeTitle,
         completion.completedAt,
       ]),
@@ -137,82 +62,63 @@ function AdminPanel({
     <section className="form-card">
       <div className="intro-panel">
         <p>
-          Review trial applications, manage renewal codes, and monitor registration
-          activity.
+          New Trial applications now automatically create a membership number and
+          onboarding authorisation code. Use this dashboard to review submitted data
+          and completion progress.
         </p>
       </div>
+
       <div className="checkout-panel">
-        <div className="admin-toolbar">
-          <input
-            aria-label="Search players"
-            placeholder="Search players, membership, email"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-          <select
-            aria-label="Filter by programme"
-            value={programmeFilter}
-            onChange={(event) => setProgrammeFilter(event.target.value)}
-          >
-            <option value="all">All programmes</option>
-            {programmes.map((programme) => (
-              <option key={programme.id} value={programme.id}>
-                {programme.title}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Filter by age group"
-            value={ageGroupFilter}
-            onChange={(event) => setAgeGroupFilter(event.target.value)}
-          >
-            <option value="all">All age groups</option>
-            {ageGroups.map((ageGroup) => (
-              <option key={ageGroup} value={ageGroup}>
-                {ageGroup}
-              </option>
-            ))}
-          </select>
+        <div className="admin-summary-grid">
+          <article className="status-card">
+            <span>Trial Applications</span>
+            <strong>{trialApplications.length}</strong>
+            <p>New Trial submissions saved in the backend.</p>
+          </article>
+          <article className="status-card">
+            <span>Onboarding Issued</span>
+            <strong>
+              {trialApplications.filter((application) => application.authorisationCode).length}
+            </strong>
+            <p>Applications with generated authorisation codes.</p>
+          </article>
+          <article className="status-card">
+            <span>Onboarding Complete</span>
+            <strong>{onboardingCompletions.length}</strong>
+            <p>Completed Urban Warrior onboarding records.</p>
+          </article>
+          <article className="status-card">
+            <span>Other Registrations</span>
+            <strong>{simpleRegistrations.length}</strong>
+            <p>General member, event, camp, and ticket submissions.</p>
+          </article>
+        </div>
+
+        <div className="admin-toolbar clean-toolbar">
           <button className="secondary-button" type="button" onClick={exportCsv}>
             Export CSV
           </button>
         </div>
 
         <div className="code-list">
-          <h2>Trial Applications</h2>
-          {trialApplications.length === 0 && (
-            <p>No paid trial applications waiting for review.</p>
-          )}
+          <h2>New Trial Applications</h2>
+          {trialApplications.length === 0 && <p>No New Trial applications yet.</p>}
           {trialApplications.map((application) => (
             <article className="status-card review-card" key={application.id}>
-              <span>{application.status}</span>
+              <span>{getTrialStatusLabel(application.status)}</span>
               <strong>
                 {application.playerName} {application.playerSurname}
               </strong>
-              <p>
-                {application.guardianEmail} - submitted{" "}
-                {new Date(application.submittedAt).toLocaleDateString()}
-              </p>
-              {application.authorisationCode && (
+              <p>Guardian email: {application.guardianEmail}</p>
+              <p>Guardian phone: {application.guardianPhone}</p>
+              <p>Submitted: {new Date(application.submittedAt).toLocaleString()}</p>
+              {application.authorisationCode ? (
                 <p>Authorisation code: {application.authorisationCode}</p>
+              ) : (
+                <p>Authorisation code: not issued</p>
               )}
-              {application.status === "paid" && (
-                <div className="review-actions">
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => onReviewTrial(application.id, "unsuccessful")}
-                  >
-                    Mark Unsuccessful
-                  </button>
-                  <button
-                    className="submit-button inline-submit"
-                    type="button"
-                    onClick={() => markTrialSuccessful(application)}
-                  >
-                    Mark Successful
-                  </button>
-                </div>
+              {application.membershipNumber && (
+                <p>Membership number: {application.membershipNumber}</p>
               )}
             </article>
           ))}
@@ -221,87 +127,11 @@ function AdminPanel({
         <div className="product-divider" />
 
         <div className="code-list">
-          <h2>Current Players</h2>
-          <div className="programme-grid admin-player-grid">
-            {filteredPlayers.map((player) => {
-              const programme = programmes.find((item) => item.id === player.programmeId);
-              return (
-                <article className="status-card" key={player.id}>
-                  <span>{player.ageGroup}</span>
-                  <strong>
-                    {player.name} {player.surname}
-                  </strong>
-                  <p>Membership: {player.membershipNumber}</p>
-                  <p>Programme: {programme?.title ?? "Unknown"}</p>
-                  <p>{player.guardianEmail}</p>
-                </article>
-              );
-            })}
-          </div>
-          <label className="field-label" htmlFor="currentPlayer">
-            Existing Player
-          </label>
-          <select
-            id="currentPlayer"
-            value={selectedPlayerId}
-            onChange={(event) => setSelectedPlayerId(event.target.value)}
-          >
-            {filteredPlayers.map((player) => (
-              <option key={player.id} value={player.id}>
-                {player.name} {player.surname} - {player.membershipNumber}
-              </option>
-            ))}
-          </select>
-          <div className="review-actions">
-            <button className="submit-button inline-submit" type="button" onClick={generateCode}>
-              Generate Renewal Code
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={bulkGenerateRenewalCodes}
-            >
-              Bulk Generate for Filtered
-            </button>
-          </div>
-        </div>
-
-        <div className="code-list">
-          <h2>Generated Codes</h2>
-          {codes.length === 0 && <p>No temporary codes generated yet.</p>}
-          {codes.map((code) => (
-            <article className="status-card" key={code.id}>
-              <span>{code.used ? "used" : "unused"} - {code.type}</span>
-              <strong>{code.code}</strong>
-              <p>
-                {code.playerName} - {code.playerEmail}
-              </p>
-              {code.membershipNumber && <p>Membership: {code.membershipNumber}</p>}
-              <p>
-                Email:{" "}
-                {code.emailSentAt
-                  ? `sent ${new Date(code.emailSentAt).toLocaleString()}`
-                  : "not sent"}
-              </p>
-              {!code.emailSentAt && (
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => onSimulateEmailSent(code.id)}
-                >
-                  Simulate Sending Email
-                </button>
-              )}
-            </article>
-          ))}
-        </div>
-
-        <div className="code-list">
           <h2>Onboarding Completion Status</h2>
           {onboardingCompletions.length === 0 && <p>No completed onboarding records.</p>}
           {onboardingCompletions.map((completion) => (
             <article className="status-card" key={completion.id}>
-              <span>{completion.codeType}</span>
+              <span>{getCodeTypeLabel(completion.codeType)}</span>
               <strong>
                 {completion.playerName} {completion.playerSurname}
               </strong>
@@ -312,9 +142,37 @@ function AdminPanel({
             </article>
           ))}
         </div>
+
+        <div className="product-divider" />
+
+        <div className="code-list">
+          <h2>Other Registration Submissions</h2>
+          {simpleRegistrations.length === 0 && <p>No other registration submissions.</p>}
+          {simpleRegistrations.map((registration) => (
+            <article className="status-card" key={registration.id}>
+              <span>{registration.type}</span>
+              <strong>{registration.fullName}</strong>
+              <p>{registration.email}</p>
+              <p>Phone: {registration.phone}</p>
+              <p>Reference: {registration.referenceNumber}</p>
+              <p>Submitted: {new Date(registration.submittedAt).toLocaleString()}</p>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );
+}
+
+function getTrialStatusLabel(status: TrialApplication["status"]) {
+  if (status === "successful") return "Onboarding Issued";
+  if (status === "unsuccessful") return "Not Approved";
+  if (status === "paid") return "Legacy: Awaiting Review";
+  return "Legacy: Payment Pending";
+}
+
+function getCodeTypeLabel(type: OnboardingCompletion["codeType"]) {
+  return type === "trial-authorisation" ? "New Trial" : "Renewal";
 }
 
 export default AdminPanel;

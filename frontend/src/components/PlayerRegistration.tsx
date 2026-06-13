@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { TrialApplication } from "../types";
+import type { TrialApplication, TrialOnboardingCredentials } from "../types";
 import { validateCode } from "../utils/api";
 import FormField from "./FormField";
 import TrialRegistration from "./TrialRegistration";
@@ -8,14 +8,16 @@ type PlayerJourney = "renewal" | "trial";
 
 type PlayerRegistrationProps = {
   onTrialApplicationSaved: (application: TrialApplication) => void;
+  onTrialCredentialsIssued: (credentials: TrialOnboardingCredentials) => void;
   onContinueToOnboarding: () => void;
 };
 
 function PlayerRegistration({
   onTrialApplicationSaved,
+  onTrialCredentialsIssued,
   onContinueToOnboarding,
 }: PlayerRegistrationProps) {
-  const [journey, setJourney] = useState<PlayerJourney>("renewal");
+  const [journey, setJourney] = useState<PlayerJourney>("trial");
   const [membershipNumber, setMembershipNumber] = useState("");
   const [renewalCode, setRenewalCode] = useState("");
   const [message, setMessage] = useState("");
@@ -55,6 +57,16 @@ function PlayerRegistration({
       <div className="registration-form">
         <div className="journey-selector" role="tablist" aria-label="Player registration path">
           <button
+            className={journey === "trial" ? "active" : ""}
+            type="button"
+            onClick={() => {
+              setJourney("trial");
+              setMessage("");
+            }}
+          >
+            New Trial
+          </button>
+          <button
             className={journey === "renewal" ? "active" : ""}
             type="button"
             onClick={() => {
@@ -63,16 +75,6 @@ function PlayerRegistration({
             }}
           >
             Renewal
-          </button>
-          <button
-            className={journey === "trial" ? "active" : ""}
-            type="button"
-            onClick={() => {
-              setJourney("trial");
-              setMessage("");
-            }}
-          >
-            Trial
           </button>
         </div>
 
@@ -113,7 +115,13 @@ function PlayerRegistration({
 
         {journey === "trial" && (
           <div className="path-panel embedded-panel">
-            <TrialRegistration onApplicationSaved={onTrialApplicationSaved} />
+            <TrialRegistration
+              onApplicationSaved={onTrialApplicationSaved}
+              onCredentialsIssued={(credentials) => {
+                onTrialCredentialsIssued(credentials);
+                onContinueToOnboarding();
+              }}
+            />
           </div>
         )}
       </div>

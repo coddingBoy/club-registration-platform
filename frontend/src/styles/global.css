@@ -656,10 +656,20 @@ input[type="file"] {
   margin-top: 0.6rem;
 }
 
+.admin-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.8rem;
+}
+
 .admin-toolbar {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.75rem;
+}
+
+.clean-toolbar {
+  justify-items: start;
 }
 
 .admin-session-bar {

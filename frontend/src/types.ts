@@ -82,6 +82,16 @@ export type TrialApplication = TrialRegistration & {
   status: TrialApplicationStatus;
   paymentConfirmed: boolean;
   authorisationCode?: string;
+  membershipNumber?: string;
+};
+
+export type TrialOnboardingCredentials = {
+  authorisationCode: string;
+  membershipNumber: string;
+  playerName?: string;
+  playerSurname?: string;
+  guardianName?: string;
+  guardianEmail?: string;
 };
 
 export type GeneratedCode = {
