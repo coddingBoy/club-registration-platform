@@ -3,8 +3,8 @@ import type {
   SimpleRegistrationConfig,
   SimpleRegistrationRecord,
 } from "../types";
+import { validateSimpleRegistration } from "../services/validationService";
 import { postSimpleRegistration } from "../utils/api";
-import { isEmail, isRequired, isTenDigitPhone } from "../utils/validation";
 import FormField from "./FormField";
 
 type PlaceholderFormProps = {
@@ -37,33 +37,7 @@ function PlaceholderForm({ config, onSubmitRegistration }: PlaceholderFormProps)
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const nextErrors: Record<string, string> = {};
-
-    if (!isRequired(baseValues.fullName)) {
-      nextErrors.fullName = "Full name is required.";
-    }
-
-    if (!isEmail(baseValues.email)) {
-      nextErrors.email = "Enter a valid email.";
-    }
-
-    if (!isTenDigitPhone(baseValues.phone)) {
-      nextErrors.phone = "Enter a 10 digit phone number.";
-    }
-
-    if (config.dateOfBirthRelevant && !isRequired(baseValues.dateOfBirth)) {
-      nextErrors.dateOfBirth = "Date of birth is required.";
-    }
-
-    if (config.parentGuardianRelevant && !isRequired(baseValues.parentGuardian)) {
-      nextErrors.parentGuardian = "Parent/guardian is required.";
-    }
-
-    config.fields.forEach((field) => {
-      if (field.required && !isRequired(specificValues[field.name] ?? "")) {
-        nextErrors[field.name] = `${field.label} is required.`;
-      }
-    });
+    const nextErrors = validateSimpleRegistration(config, baseValues, specificValues);
 
     setErrors(nextErrors);
 
