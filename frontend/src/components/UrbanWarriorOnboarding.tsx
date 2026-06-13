@@ -1,17 +1,13 @@
 import { type FormEvent, useMemo, useState } from "react";
+import { fees } from "../data/fees";
 import { programmes } from "../data/programmes";
-import { findUnusedCode, getLocalCodeError } from "../services/codeService";
-import { buildOnboardingConfirmationMessage } from "../services/emailService";
-import { calculateOnboardingAmount } from "../services/paymentService";
-import { validateOnboardingStep } from "../services/validationService";
 import type {
   GeneratedCode,
   OnboardingCompletion,
   OnboardingRegistration,
 } from "../types";
 import { postOnboarding, validateCode } from "../utils/api";
-import { generatePassportNumber } from "../utils/codeGenerator";
-import { formatCurrency } from "../utils/validation";
+import { formatCurrency, isEmail, isRequired } from "../utils/validation";
 import FormField from "./FormField";
 
 type UrbanWarriorOnboardingProps = {
@@ -58,15 +54,18 @@ function UrbanWarriorOnboarding({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const matchingCode = useMemo(
-    () => findUnusedCode(codes, values.authorisationCode),
+    () => codes.find((code) => code.code === values.authorisationCode.trim() && !code.used),
     [codes, values.authorisationCode],
   );
+  const selectedProgramme =
+    programmes.find((programme) => programme.id === values.programmeId) ?? programmes[0];
+  const trialFee = fees.find((fee) => fee.id === "trial")?.amount ?? 500;
   const effectiveCodeType = validatedCodeType || matchingCode?.type || "";
-  const { programme: selectedProgramme, trialCredit, amountDue } =
-    calculateOnboardingAmount(values.programmeId, effectiveCodeType);
+  const trialCredit = effectiveCodeType === "trial-authorisation" ? trialFee : 0;
+  const amountDue = Math.max((selectedProgramme?.registrationFee ?? 0) - trialCredit, 0);
 
   const goNext = async () => {
-    const error = validateOnboardingStep(step, values);
+    const error = getStepError(step, values);
 
     if (error) {
       setMessage(error);
@@ -76,22 +75,6 @@ function UrbanWarriorOnboarding({
     if (step === 0) {
       setIsSubmitting(true);
       setMessage("");
-
-      const localCodeError = getLocalCodeError(matchingCode, values);
-
-      if (matchingCode && localCodeError) {
-        setMessage(localCodeError);
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (matchingCode) {
-        setValidatedCodeType(matchingCode.type);
-        setMessage("");
-        setStep((current) => Math.min(current + 1, steps.length - 1));
-        setIsSubmitting(false);
-        return;
-      }
 
       try {
         const result = await validateCode({
@@ -121,7 +104,7 @@ function UrbanWarriorOnboarding({
 
   const completeOnboarding = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const error = validateOnboardingStep(3, values);
+    const error = getStepError(3, values);
 
     if (error) {
       setMessage(error);
@@ -132,48 +115,6 @@ function UrbanWarriorOnboarding({
     setMessage("");
 
     try {
-      if (matchingCode) {
-        const localCodeError = getLocalCodeError(matchingCode, values);
-
-        if (localCodeError) {
-          setMessage(localCodeError);
-          setIsSubmitting(false);
-          return;
-        }
-
-        const generatedPassport = generatePassportNumber();
-        const completedAt = new Date().toISOString();
-        const confirmation = buildOnboardingConfirmationMessage({
-          guardianEmail: values.guardianEmail,
-          programmeTitle: selectedProgramme.title,
-          passportNumber: generatedPassport,
-          amountDue,
-          source: "local",
-        });
-
-        onUseCode(values.authorisationCode.trim());
-        setPassportNumber(generatedPassport);
-        setConfirmationEmail(confirmation);
-        onComplete({
-          id: crypto.randomUUID(),
-          completedAt,
-          passportNumber: generatedPassport,
-          programmeId: values.programmeId,
-          programmeTitle: selectedProgramme.title,
-          playerName: values.playerName,
-          playerSurname: values.playerSurname,
-          guardianEmail: values.guardianEmail,
-          codeUsed: values.authorisationCode.trim(),
-          codeType: matchingCode.type,
-          trialCredit,
-          amountPaid: amountDue,
-          paymentOption: values.paymentOption,
-          confirmationEmail: confirmation,
-        });
-        setStep(4);
-        return;
-      }
-
       const result = await postOnboarding({
         code: values.authorisationCode.trim(),
         membershipNumber: values.membershipNumber.trim() || undefined,
@@ -188,13 +129,7 @@ function UrbanWarriorOnboarding({
         paymentOption: values.paymentOption,
       });
       const generatedPassport = result.onboardingRecord.passportNumber;
-      const confirmation = buildOnboardingConfirmationMessage({
-        guardianEmail: values.guardianEmail,
-        programmeTitle: result.onboardingRecord.programmeTitle,
-        passportNumber: generatedPassport,
-        amountDue: result.onboardingRecord.amountDue,
-        source: "backend",
-      });
+      const confirmation = `Onboarding created in backend for ${values.guardianEmail}. Programme: ${result.onboardingRecord.programmeTitle}. Passport number: ${generatedPassport}. Amount due: ${formatCurrency(result.onboardingRecord.amountDue)}.`;
       onUseCode(values.authorisationCode);
       setPassportNumber(generatedPassport);
       setConfirmationEmail(confirmation);
@@ -280,7 +215,10 @@ function UrbanWarriorOnboarding({
                 ))}
               </select>
               <span className="field-hint">
-                Monthly tuition: {formatCurrency(selectedProgramme.monthlyFee)}
+                Monthly tuition:{" "}
+                {selectedProgramme
+                  ? formatCurrency(selectedProgramme.monthlyFee)
+                  : formatCurrency(0)}
               </span>
             </FormField>
             <FormField label="Player Name" htmlFor="onboardName" required>
@@ -375,14 +313,14 @@ function UrbanWarriorOnboarding({
           <div className="path-panel">
             <h2>Payment</h2>
             <div className="payment-summary">
-              <p>Programme: {selectedProgramme.title}</p>
+              <p>Programme: {selectedProgramme?.title}</p>
               <p>
                 Registration plus first month:{" "}
-                {formatCurrency(selectedProgramme.registrationFee)}
+                {formatCurrency(selectedProgramme?.registrationFee ?? 0)}
               </p>
               <p>
                 Monthly tuition after onboarding:{" "}
-                {formatCurrency(selectedProgramme.monthlyFee)}
+                {formatCurrency(selectedProgramme?.monthlyFee ?? 0)}
               </p>
               <p>
                 Trial credit:{" "}
@@ -454,6 +392,39 @@ function UrbanWarriorOnboarding({
       </form>
     </section>
   );
+}
+
+function getStepError(
+  step: number,
+  values: OnboardingRegistration,
+) {
+  if (step === 0) {
+    if (
+      !isRequired(values.authorisationCode) ||
+      !isRequired(values.programmeId) ||
+      !isRequired(values.playerName) ||
+      !isRequired(values.playerSurname) ||
+      !isRequired(values.idNumber) ||
+      !isRequired(values.guardianName) ||
+      !isEmail(values.guardianEmail)
+    ) {
+      return "Complete all required personal details.";
+    }
+  }
+
+  if (step === 1 && !values.codeOfConductAccepted) {
+    return "Accept the Code of Conduct before continuing.";
+  }
+
+  if (step === 2 && !values.debitOrderAccepted) {
+    return "Authorise the debit order placeholder before continuing.";
+  }
+
+  if (step === 3 && !values.paymentOption) {
+    return "Select a payment option.";
+  }
+
+  return "";
 }
 
 export default UrbanWarriorOnboarding;

@@ -9,31 +9,20 @@ import Tabs from "./components/Tabs";
 import UrbanWarriorOnboarding from "./components/UrbanWarriorOnboarding";
 import { getSimpleRegistrationForm } from "./data/registrationForms";
 import { programmes } from "./data/programmes";
-import { markCodeEmailSent, markCodeUsed } from "./services/codeService";
-import {
-  isSimpleRegistrationType,
-  mapDatabaseSimpleRegistration,
-} from "./services/registrationService";
-import {
-  loadActiveTab,
-  loadAdminSession,
-  loadGeneratedCodes,
-  loadOnboardingCompletions,
-  saveActiveTab,
-  saveAdminSession,
-  saveGeneratedCodes,
-  saveOnboardingCompletions,
-} from "./services/storageService";
-import { mapDatabaseTrial } from "./services/trialService";
 import type {
   AdminSession,
   AppTab,
   GeneratedCode,
   OnboardingCompletion,
   SimpleRegistrationRecord,
+  SimpleRegistrationType,
   TrialApplication,
 } from "./types";
-import { getSimpleRegistrations, getTrialApplications } from "./utils/api";
+import {
+  getSimpleRegistrations,
+  getTrialApplications,
+} from "./utils/api";
+import { loadFromStorage, saveToStorage } from "./utils/storage";
 import { formatCurrency } from "./utils/validation";
 
 const publicTabs: Array<{ id: AppTab; label: string }> = [
@@ -48,28 +37,43 @@ const publicTabs: Array<{ id: AppTab; label: string }> = [
   { id: "admin", label: "Admin" },
 ];
 
+const storageKeys = {
+  activeTab: "cts-active-tab",
+  adminSession: "cts-admin-session",
+  generatedCodes: "cts-generated-codes",
+  trialApplications: "cts-trial-applications",
+  simpleRegistrations: "cts-simple-registrations",
+  onboardingCompletions: "cts-onboarding-completions",
+};
+
 function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>(loadActiveTab);
-  const [adminSession, setAdminSession] = useState<AdminSession | null>(loadAdminSession);
-  const [generatedCodes, setGeneratedCodes] = useState<GeneratedCode[]>(loadGeneratedCodes);
+  const [activeTab, setActiveTab] = useState<AppTab>(() =>
+    normalizeStoredTab(loadFromStorage(storageKeys.activeTab, "player")),
+  );
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(() =>
+    loadFromStorage<AdminSession | null>(storageKeys.adminSession, null),
+  );
+  const [generatedCodes, setGeneratedCodes] = useState<GeneratedCode[]>(() =>
+    loadFromStorage(storageKeys.generatedCodes, []),
+  );
   const [trialApplications, setTrialApplications] = useState<TrialApplication[]>([]);
   const [simpleRegistrations, setSimpleRegistrations] = useState<
     SimpleRegistrationRecord[]
   >([]);
   const [onboardingCompletions, setOnboardingCompletions] = useState<
     OnboardingCompletion[]
-  >(loadOnboardingCompletions);
+  >(() => loadFromStorage(storageKeys.onboardingCompletions, []));
 
   useEffect(() => {
-    saveActiveTab(activeTab);
+    saveToStorage(storageKeys.activeTab, activeTab);
   }, [activeTab]);
 
   useEffect(() => {
-    saveGeneratedCodes(generatedCodes);
+    saveToStorage(storageKeys.generatedCodes, generatedCodes);
   }, [generatedCodes]);
 
   useEffect(() => {
-    saveAdminSession(adminSession);
+    saveToStorage(storageKeys.adminSession, adminSession);
   }, [adminSession]);
 
   useEffect(() => {
@@ -91,7 +95,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    saveOnboardingCompletions(onboardingCompletions);
+    saveToStorage(storageKeys.onboardingCompletions, onboardingCompletions);
   }, [onboardingCompletions]);
 
   const addGeneratedCode = (code: GeneratedCode) => {
@@ -99,7 +103,11 @@ function App() {
   };
 
   const simulateEmailSent = (codeId: string) => {
-    setGeneratedCodes((current) => markCodeEmailSent(current, codeId));
+    setGeneratedCodes((current) =>
+      current.map((code) =>
+        code.id === codeId ? { ...code, emailSentAt: new Date().toISOString() } : code,
+      ),
+    );
   };
 
   const addTrialApplication = (application: TrialApplication) => {
@@ -129,7 +137,11 @@ function App() {
   };
 
   const markCodeAsUsed = (codeValue: string) => {
-    setGeneratedCodes((current) => markCodeUsed(current, codeValue));
+    setGeneratedCodes((current) =>
+      current.map((code) =>
+        code.code === codeValue ? { ...code, used: true } : code,
+      ),
+    );
   };
 
   const addSimpleRegistration = (record: SimpleRegistrationRecord) => {
@@ -140,7 +152,7 @@ function App() {
     setOnboardingCompletions((current) => [record, ...current]);
   };
 
-  const simpleFormConfig = isSimpleRegistrationType(activeTab)
+  const simpleFormConfig = isSimpleRegistrationTab(activeTab)
     ? getSimpleRegistrationForm(activeTab)
     : undefined;
 
@@ -155,7 +167,6 @@ function App() {
 
         {activeTab === "player" && (
           <PlayerRegistration
-            codes={generatedCodes}
             onTrialApplicationSaved={addTrialApplication}
             onContinueToOnboarding={() => setActiveTab("onboarding")}
           />
@@ -235,6 +246,70 @@ function App() {
       </aside>
     </Layout>
   );
+}
+
+function mapDatabaseTrial(trial: Awaited<ReturnType<typeof getTrialApplications>>[number]): TrialApplication {
+  return {
+    id: trial.id,
+    playerName: trial.playerName,
+    playerSurname: trial.playerSurname,
+    dateOfBirth: trial.dateOfBirth?.slice(0, 10) ?? "",
+    guardianName: trial.guardianName,
+    guardianEmail: trial.guardianEmail,
+    guardianPhone: trial.guardianPhone,
+    submittedAt: trial.createdAt,
+    status: mapTrialStatus(trial.status),
+    paymentConfirmed: trial.status !== "PAYMENT_PENDING",
+    authorisationCode: trial.authorisationCode?.code,
+  };
+}
+
+function mapTrialStatus(status: string): TrialApplication["status"] {
+  if (status === "PAYMENT_PENDING") return "payment-pending";
+  if (status === "SUCCESSFUL") return "successful";
+  if (status === "UNSUCCESSFUL") return "unsuccessful";
+  return "paid";
+}
+
+function mapDatabaseSimpleRegistration(
+  registration: Awaited<ReturnType<typeof getSimpleRegistrations>>[number],
+): SimpleRegistrationRecord {
+  return {
+    id: registration.id,
+    type: registration.type as SimpleRegistrationType,
+    referenceNumber: registration.referenceNumber,
+    fullName: registration.fullName,
+    email: registration.email,
+    phone: registration.phone,
+    dateOfBirth: registration.dateOfBirth?.slice(0, 10),
+    parentGuardian: registration.parentGuardian ?? undefined,
+    specificFields: registration.specificFields ?? {},
+    submittedAt: registration.createdAt,
+    emailSimulatedAt: registration.emailSimulatedAt ?? registration.createdAt,
+  };
+}
+
+function normalizeStoredTab(tab: AppTab | "general" | "trial" | "programmes"): AppTab {
+  if (tab === "general" || tab === "trial") {
+    return "player";
+  }
+
+  if (tab === "programmes") {
+    return "general-member";
+  }
+
+  return tab;
+}
+
+function isSimpleRegistrationTab(tab: AppTab): tab is SimpleRegistrationType {
+  return [
+    "general-member",
+    "holiday-camp",
+    "meet-greet",
+    "urban-lounge",
+    "club-event",
+    "match-tickets",
+  ].includes(tab);
 }
 
 export default App;

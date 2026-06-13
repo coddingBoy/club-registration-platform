@@ -1,22 +1,13 @@
 import { useMemo, useState } from "react";
 import { mockPlayers } from "../data/mockPlayers";
 import { programmes } from "../data/programmes";
-import {
-  buildRegistrationsCsv,
-  filterCurrentPlayers,
-  getProgrammeTitle,
-} from "../services/adminService";
-import {
-  createRenewalCode as createRenewalCodeForPlayer,
-  createTrialAuthorisationCode,
-} from "../services/codeService";
-import { buildTrialUnsuccessfulMessage } from "../services/emailService";
 import type {
   GeneratedCode,
   OnboardingCompletion,
   SimpleRegistrationRecord,
   TrialApplication,
 } from "../types";
+import { generateRenewalCode, generateTrialAuthorisationCode } from "../utils/codeGenerator";
 
 type AdminPanelProps = {
   codes: GeneratedCode[];
@@ -45,24 +36,36 @@ function AdminPanel({
   const [searchTerm, setSearchTerm] = useState("");
   const [programmeFilter, setProgrammeFilter] = useState("all");
   const [ageGroupFilter, setAgeGroupFilter] = useState("all");
-  const [adminMessage, setAdminMessage] = useState("");
 
   const filteredPlayers = useMemo(
     () =>
-      filterCurrentPlayers(mockPlayers, {
-        searchTerm,
-        programmeFilter,
-        ageGroupFilter,
-      }),
+      mockPlayers
+        .filter((player) => player.status === "current")
+        .filter((player) => {
+          const searchable = `${player.name} ${player.surname} ${player.membershipNumber} ${player.guardianEmail}`.toLowerCase();
+          return searchable.includes(searchTerm.toLowerCase());
+        })
+        .filter((player) =>
+          programmeFilter === "all" ? true : player.programmeId === programmeFilter,
+        )
+        .filter((player) =>
+          ageGroupFilter === "all" ? true : player.ageGroup === ageGroupFilter,
+        ),
     [ageGroupFilter, programmeFilter, searchTerm],
   );
-  const selectedPlayer =
-    filteredPlayers.find((player) => player.id === selectedPlayerId) ?? filteredPlayers[0];
+  const selectedPlayer = mockPlayers.find((player) => player.id === selectedPlayerId);
   const ageGroups = Array.from(new Set(mockPlayers.map((player) => player.ageGroup)));
 
   const createRenewalCode = (player: (typeof mockPlayers)[number]) => {
-    onGenerateRenewalCode(createRenewalCodeForPlayer(player));
-    setAdminMessage(`Renewal code generated for ${player.name} ${player.surname}.`);
+    onGenerateRenewalCode({
+      id: crypto.randomUUID(),
+      code: generateRenewalCode(),
+      playerName: `${player.name} ${player.surname}`,
+      playerEmail: player.guardianEmail,
+      type: "renewal",
+      membershipNumber: player.membershipNumber,
+      used: false,
+    });
   };
 
   const generateCode = () => {
@@ -72,29 +75,56 @@ function AdminPanel({
 
   const bulkGenerateRenewalCodes = () => {
     filteredPlayers.forEach(createRenewalCode);
-    setAdminMessage(`Generated ${filteredPlayers.length} renewal code(s).`);
   };
 
   const markTrialSuccessful = (application: TrialApplication) => {
-    const code: GeneratedCode = createTrialAuthorisationCode(application);
+    const code: GeneratedCode = {
+      id: crypto.randomUUID(),
+      code: generateTrialAuthorisationCode(),
+      playerName: `${application.playerName} ${application.playerSurname}`,
+      playerEmail: application.guardianEmail,
+      type: "trial-authorisation",
+      used: false,
+    };
 
     onReviewTrial(application.id, "successful", code);
-    setAdminMessage(`Trial marked successful. Code generated for ${application.playerName}.`);
-  };
-
-  const markTrialUnsuccessful = (application: TrialApplication) => {
-    onReviewTrial(application.id, "unsuccessful");
-    setAdminMessage(
-      buildTrialUnsuccessfulMessage(application.playerName, application.playerSurname),
-    );
   };
 
   const exportCsv = () => {
-    const csv = buildRegistrationsCsv(
-      trialApplications,
-      simpleRegistrations,
-      onboardingCompletions,
-    );
+    const rows = [
+      ["type", "name", "email", "reference", "status", "programme", "submittedOrCompletedAt"],
+      ...trialApplications.map((application) => [
+        "trial",
+        `${application.playerName} ${application.playerSurname}`,
+        application.guardianEmail,
+        application.authorisationCode ?? "",
+        application.status,
+        "",
+        application.submittedAt,
+      ]),
+      ...simpleRegistrations.map((registration) => [
+        registration.type,
+        registration.fullName,
+        registration.email,
+        registration.referenceNumber,
+        "submitted",
+        "",
+        registration.submittedAt,
+      ]),
+      ...onboardingCompletions.map((completion) => [
+        "onboarding",
+        `${completion.playerName} ${completion.playerSurname}`,
+        completion.guardianEmail,
+        completion.passportNumber,
+        "completed",
+        completion.programmeTitle,
+        completion.completedAt,
+      ]),
+    ];
+
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const link = document.createElement("a");
     link.href = url;
@@ -112,8 +142,6 @@ function AdminPanel({
         </p>
       </div>
       <div className="checkout-panel">
-        {adminMessage && <p className="success-message">{adminMessage}</p>}
-
         <div className="admin-toolbar">
           <input
             aria-label="Search players"
@@ -173,7 +201,7 @@ function AdminPanel({
                   <button
                     className="secondary-button"
                     type="button"
-                    onClick={() => markTrialUnsuccessful(application)}
+                    onClick={() => onReviewTrial(application.id, "unsuccessful")}
                   >
                     Mark Unsuccessful
                   </button>
@@ -196,6 +224,7 @@ function AdminPanel({
           <h2>Current Players</h2>
           <div className="programme-grid admin-player-grid">
             {filteredPlayers.map((player) => {
+              const programme = programmes.find((item) => item.id === player.programmeId);
               return (
                 <article className="status-card" key={player.id}>
                   <span>{player.ageGroup}</span>
@@ -203,7 +232,7 @@ function AdminPanel({
                     {player.name} {player.surname}
                   </strong>
                   <p>Membership: {player.membershipNumber}</p>
-                  <p>Programme: {getProgrammeTitle(player.programmeId)}</p>
+                  <p>Programme: {programme?.title ?? "Unknown"}</p>
                   <p>{player.guardianEmail}</p>
                 </article>
               );
@@ -214,7 +243,7 @@ function AdminPanel({
           </label>
           <select
             id="currentPlayer"
-            value={selectedPlayer?.id ?? ""}
+            value={selectedPlayerId}
             onChange={(event) => setSelectedPlayerId(event.target.value)}
           >
             {filteredPlayers.map((player) => (

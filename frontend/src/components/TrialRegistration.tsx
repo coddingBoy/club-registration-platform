@@ -1,21 +1,24 @@
 import { type FormEvent, useState } from "react";
-import { trialFeeAmount } from "../services/paymentService";
-import { buildTrialApplicationFromResponse } from "../services/trialService";
-import {
-  isTrialRegistrationComplete,
-  validateTrialRegistration,
-} from "../services/validationService";
+import { fees } from "../data/fees";
 import type {
   TrialApplication,
   TrialRegistration as TrialRegistrationData,
 } from "../types";
 import { postTrialApplication } from "../utils/api";
-import { calculateAge, formatCurrency } from "../utils/validation";
+import {
+  calculateAge,
+  formatCurrency,
+  isEmail,
+  isRequired,
+  isTenDigitPhone,
+} from "../utils/validation";
 import FormField from "./FormField";
 
 type TrialRegistrationProps = {
   onApplicationSaved: (application: TrialApplication) => void;
 };
+
+const trialFee = fees.find((fee) => fee.id === "trial");
 
 const initialValues: TrialRegistrationData = {
   playerName: "",
@@ -31,17 +34,16 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof TrialRegistrationData, string>>
-  >({});
 
   const age = calculateAge(values.dateOfBirth, new Date("2026-01-01"));
-  const formIsComplete = isTrialRegistrationComplete(values);
+  const formIsComplete =
+    isRequired(values.playerName) &&
+    isRequired(values.playerSurname) &&
+    isRequired(values.guardianName) &&
+    isEmail(values.guardianEmail) &&
+    isTenDigitPhone(values.guardianPhone);
 
   const simulatePayment = () => {
-    const nextErrors = validateTrialRegistration(values);
-    setErrors(nextErrors);
-
     if (!formIsComplete) {
       setMessage("Complete the trial form before simulating the R500 payment.");
       return;
@@ -53,10 +55,8 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const nextErrors = validateTrialRegistration(values);
-    setErrors(nextErrors);
 
-    if (Object.keys(nextErrors).length > 0) {
+    if (!formIsComplete) {
       setMessage("Complete all required trial details before saving.");
       return;
     }
@@ -71,17 +71,19 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
 
     try {
       const result = await postTrialApplication(values);
-      const application: TrialApplication = buildTrialApplicationFromResponse(
-        values,
-        result,
-      );
+      const application: TrialApplication = {
+        ...values,
+        id: result.trialApplication.id,
+        submittedAt: result.trialApplication.createdAt,
+        status: mapTrialStatus(result.trialApplication.status),
+        paymentConfirmed: result.payment.status === "PAID",
+      };
 
       onApplicationSaved(application);
       setValues(initialValues);
       setPaymentConfirmed(false);
-      setErrors({});
       setMessage(
-        `Trial application saved. Simulated R500 payment confirmed for admin review.`,
+        `Trial application sent to backend. Payment checkout created: ${result.payment.id}.`,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Trial application failed.");
@@ -101,12 +103,7 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
       <form className="registration-form" onSubmit={handleSubmit} noValidate>
         {message && <p className="success-message">{message}</p>}
         <div className="section-grid">
-          <FormField
-            label="Player Name"
-            htmlFor="trialPlayerName"
-            error={errors.playerName}
-            required
-          >
+          <FormField label="Player Name" htmlFor="trialPlayerName" required>
             <input
               id="trialPlayerName"
               value={values.playerName}
@@ -115,12 +112,7 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
               }
             />
           </FormField>
-          <FormField
-            label="Player Surname"
-            htmlFor="trialPlayerSurname"
-            error={errors.playerSurname}
-            required
-          >
+          <FormField label="Player Surname" htmlFor="trialPlayerSurname" required>
             <input
               id="trialPlayerSurname"
               value={values.playerSurname}
@@ -142,12 +134,7 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
               Age as at 1 January 2026: {age === null ? "not calculated" : age}
             </span>
           </FormField>
-          <FormField
-            label="Guardian Name"
-            htmlFor="trialGuardian"
-            error={errors.guardianName}
-            required
-          >
+          <FormField label="Guardian Name" htmlFor="trialGuardian" required>
             <input
               id="trialGuardian"
               value={values.guardianName}
@@ -156,12 +143,7 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
               }
             />
           </FormField>
-          <FormField
-            label="Guardian Email"
-            htmlFor="trialEmail"
-            error={errors.guardianEmail}
-            required
-          >
+          <FormField label="Guardian Email" htmlFor="trialEmail" required>
             <input
               id="trialEmail"
               type="email"
@@ -171,12 +153,7 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
               }
             />
           </FormField>
-          <FormField
-            label="Guardian Cell"
-            htmlFor="trialPhone"
-            error={errors.guardianPhone}
-            required
-          >
+          <FormField label="Guardian Cell" htmlFor="trialPhone" required>
             <input
               id="trialPhone"
               maxLength={10}
@@ -190,7 +167,7 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
 
         <div className="trial-payment">
           <button className="secondary-button" type="button" onClick={simulatePayment}>
-            Pay {formatCurrency(trialFeeAmount)}
+            Pay {formatCurrency(trialFee?.amount ?? 500)}
           </button>
           <p className={paymentConfirmed ? "open-message" : "capacity-copy"}>
             {paymentConfirmed ? "Payment simulated" : "Payment pending"}
@@ -203,6 +180,13 @@ function TrialRegistration({ onApplicationSaved }: TrialRegistrationProps) {
       </form>
     </section>
   );
+}
+
+function mapTrialStatus(status: string): TrialApplication["status"] {
+  if (status === "PAYMENT_PENDING") return "payment-pending";
+  if (status === "SUCCESSFUL") return "successful";
+  if (status === "UNSUCCESSFUL") return "unsuccessful";
+  return "paid";
 }
 
 export default TrialRegistration;

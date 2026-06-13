@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { findUnusedCode, getLocalCodeError } from "../services/codeService";
-import { validateRenewalUnlock } from "../services/validationService";
-import type { GeneratedCode, TrialApplication } from "../types";
+import type { TrialApplication } from "../types";
 import { validateCode } from "../utils/api";
 import FormField from "./FormField";
 import TrialRegistration from "./TrialRegistration";
@@ -9,13 +7,11 @@ import TrialRegistration from "./TrialRegistration";
 type PlayerJourney = "renewal" | "trial";
 
 type PlayerRegistrationProps = {
-  codes: GeneratedCode[];
   onTrialApplicationSaved: (application: TrialApplication) => void;
   onContinueToOnboarding: () => void;
 };
 
 function PlayerRegistration({
-  codes,
   onTrialApplicationSaved,
   onContinueToOnboarding,
 }: PlayerRegistrationProps) {
@@ -26,31 +22,8 @@ function PlayerRegistration({
   const [isValidatingRenewal, setIsValidatingRenewal] = useState(false);
 
   const validateRenewalCode = async () => {
-    const validationError = validateRenewalUnlock(membershipNumber, renewalCode);
-
-    if (validationError) {
-      setMessage(validationError);
-      return;
-    }
-
     setIsValidatingRenewal(true);
     setMessage("");
-
-    const matchingCode = findUnusedCode(codes, renewalCode);
-    const localCodeError = getLocalCodeError(matchingCode, { membershipNumber });
-
-    if (matchingCode?.type === "renewal" && !localCodeError) {
-      setMessage("Renewal code accepted. Continue to Urban Warrior Onboarding.");
-      onContinueToOnboarding();
-      setIsValidatingRenewal(false);
-      return;
-    }
-
-    if (matchingCode && localCodeError) {
-      setMessage(localCodeError);
-      setIsValidatingRenewal(false);
-      return;
-    }
 
     try {
       await validateCode({
