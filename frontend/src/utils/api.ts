@@ -35,12 +35,22 @@ export async function getBackendHealth() {
 }
 
 export async function postTrialApplication(payload: {
+  membershipCode?: string;
+  clubInviteCode?: string;
   playerName: string;
   playerSurname: string;
   dateOfBirth: string;
+  ageGroup: string;
+  gender: string;
   guardianName: string;
+  guardianSurname: string;
+  guardianRelation: string;
   guardianEmail: string;
+  guardianEmailConfirm: string;
   guardianPhone: string;
+  province: string;
+  allergiesOrConditions: string;
+  birthCertificateFileName: string;
 }) {
   const response = await fetch(`${apiBaseUrl}/api/academy/trials`, {
     method: "POST",
@@ -61,31 +71,56 @@ export async function postTrialApplication(payload: {
       playerName: string;
       playerSurname: string;
       dateOfBirth?: string | null;
+      ageGroup?: string | null;
+      gender?: string | null;
       guardianName: string;
+      guardianSurname?: string | null;
+      guardianRelation?: string | null;
       guardianEmail: string;
+      guardianEmailConfirm?: string | null;
       guardianPhone: string;
+      province?: string | null;
+      allergiesOrConditions?: string | null;
+      birthCertificateFileName?: string | null;
+      birthCertificateDocumentId?: string | null;
+      birthCertificateFileUrl?: string | null;
       status: "PAYMENT_PENDING" | "PAID" | "SUCCESSFUL" | "UNSUCCESSFUL";
       createdAt: string;
     };
-    payment: {
+    payment?: {
       id: string;
       status: string;
       amount: number;
-    };
+    } | null;
     checkout: {
       provider: string;
       checkoutUrl: string;
       fields: Record<string, string>;
-    };
-    onboardingCredentials?: {
-      authorisationCode: string;
-      authorisationCodeId?: string;
-      membershipNumber: string;
-      playerName?: string;
-      playerSurname?: string;
-      guardianName?: string;
-      guardianEmail?: string;
-    };
+    } | null;
+    membershipNumber?: string;
+    emailStatus?: string;
+    emailError?: string | null;
+    emailSentAt?: string;
+  }>;
+}
+
+export async function getClubInviteTrialLookup(membershipCode: string) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/club-invite-trials/${encodeURIComponent(
+      membershipCode,
+    )}`,
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Club invite lookup failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    playerName: string;
+    email: string;
+    membershipCode: string;
+    inviteCode: string;
   }>;
 }
 
@@ -102,11 +137,22 @@ export async function getTrialApplications() {
       playerName: string;
       playerSurname: string;
       dateOfBirth?: string | null;
+      ageGroup?: string | null;
+      gender?: string | null;
       guardianName: string;
+      guardianSurname?: string | null;
+      guardianRelation?: string | null;
       guardianEmail: string;
+      guardianEmailConfirm?: string | null;
       guardianPhone: string;
+      province?: string | null;
+      allergiesOrConditions?: string | null;
+      birthCertificateFileName?: string | null;
+      birthCertificateDocumentId?: string | null;
+      birthCertificateFileUrl?: string | null;
       status: "PAYMENT_PENDING" | "PAID" | "SUCCESSFUL" | "UNSUCCESSFUL";
       createdAt: string;
+      membershipNumber?: string | null;
       authorisationCode?: {
         id: string;
         code: string;
@@ -120,8 +166,279 @@ export async function getTrialApplications() {
           createdAt: string;
         }>;
       } | null;
+      emailStatus?: string;
+      emailError?: string | null;
+      emailSentAt?: string;
     }>
   >;
+}
+
+export async function getClubInviteApplications() {
+  const response = await fetch(`${apiBaseUrl}/api/academy/club-invite-applications`);
+
+  if (!response.ok) {
+    throw new Error(`Club invite applications failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<
+    Array<{
+      id: string;
+      membershipCode?: string | null;
+      inviteCode?: string | null;
+      playerName: string;
+      playerSurname: string;
+      dateOfBirth?: string | null;
+      ageGroup?: string | null;
+      gender?: string | null;
+      guardianName: string;
+      guardianSurname?: string | null;
+      guardianRelation?: string | null;
+      guardianEmail: string;
+      guardianEmailConfirm?: string | null;
+      guardianPhone: string;
+      province?: string | null;
+      allergiesOrConditions?: string | null;
+      birthCertificateFileName?: string | null;
+      birthCertificateDocumentId?: string | null;
+      birthCertificateFileUrl?: string | null;
+      status: "PAYMENT_PENDING" | "PAID" | "SUCCESSFUL" | "UNSUCCESSFUL";
+      createdAt: string;
+      membershipNumber?: string | null;
+      authorisationCode?: {
+        id: string;
+        code: string;
+        membershipNumber?: string | null;
+        emailLogs?: Array<{
+          id: string;
+          to: string;
+          subject: string;
+          status: string;
+          error?: string | null;
+          createdAt: string;
+        }>;
+      } | null;
+      emailStatus?: string;
+      emailError?: string | null;
+      emailSentAt?: string;
+    }>
+  >;
+}
+
+export async function uploadTrialBirthCertificate(
+  trialApplicationId: string,
+  file: File,
+) {
+  const formData = new FormData();
+  formData.append("document", file);
+
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/trials/${trialApplicationId}/birth-certificate`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Birth certificate upload failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    originalName?: string | null;
+    fileUrl: string;
+  }>;
+}
+
+export async function fetchAdminDocumentFile(documentId: string, token: string) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/documents/${documentId}/file`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Document preview failed with ${response.status}`);
+  }
+
+  return response.blob();
+}
+
+export async function getClubInviteTrialCodes(token: string) {
+  const response = await fetch(`${apiBaseUrl}/api/academy/admin/club-invite-trials`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Club invite list failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<
+    Array<{
+      id: string;
+      playerName: string;
+      email: string;
+      emailConfirm: string;
+      membershipCode: string;
+      inviteCode: string;
+      emailStatus?: string | null;
+      emailError?: string | null;
+      emailSentAt?: string | null;
+      createdAt: string;
+    }>
+  >;
+}
+
+export async function createClubInviteTrialCode(
+  payload: { playerName: string; email: string; emailConfirm: string },
+  token: string,
+) {
+  const response = await fetch(`${apiBaseUrl}/api/academy/admin/club-invite-trials`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Club invite generation failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    playerName: string;
+    email: string;
+    emailConfirm: string;
+    membershipCode: string;
+    inviteCode: string;
+    emailStatus?: string | null;
+    emailError?: string | null;
+    emailSentAt?: string | null;
+    createdAt: string;
+  }>;
+}
+
+export async function resendClubInviteTrialCodeEmail(inviteId: string, token: string) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/club-invite-trials/${inviteId}/send-email`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Club invite resend failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    playerName: string;
+    email: string;
+    emailConfirm: string;
+    membershipCode: string;
+    inviteCode: string;
+    emailStatus?: string | null;
+    emailError?: string | null;
+    emailSentAt?: string | null;
+    createdAt: string;
+  }>;
+}
+
+export async function reviewTrialApplication(
+  trialApplicationId: string,
+  status: "SUCCESSFUL" | "UNSUCCESSFUL",
+  token: string,
+) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/trials/${trialApplicationId}/review`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Trial review failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    trialApplication: {
+      id: string;
+      status: "SUCCESSFUL" | "UNSUCCESSFUL";
+    };
+    code?: {
+      id: string;
+      code: string;
+      membershipNumber?: string | null;
+    } | null;
+    emailLog?: {
+      id: string;
+      status: string;
+      error?: string | null;
+      createdAt: string;
+    };
+  }>;
+}
+
+export async function reviewClubInviteApplication(
+  applicationId: string,
+  status: "SUCCESSFUL" | "UNSUCCESSFUL",
+  token: string,
+) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/club-invite-applications/${applicationId}/review`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Club invite review failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    clubInviteApplication: {
+      id: string;
+      status: "SUCCESSFUL" | "UNSUCCESSFUL";
+    };
+    code?: {
+      id: string;
+      code: string;
+      membershipNumber?: string | null;
+    } | null;
+    emailLog?: {
+      id: string;
+      status: string;
+      error?: string | null;
+      createdAt: string;
+    };
+  }>;
 }
 
 export async function resendCodeEmail(codeId: string, token: string) {

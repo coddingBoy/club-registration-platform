@@ -2,20 +2,27 @@ const {
   bulkCreateRenewalCodes,
   createOnboardingRecord,
   createDocumentUpload,
+  createTrialBirthCertificateUpload,
   createRenewalCode,
   createSimpleRegistration,
   completeSimpleRegistrationPayment,
+  createClubInviteTrialCode,
   createTrialApplication,
   exportRegistrationsCsv,
   getDocument,
+  getClubInviteTrialCodeByMembership,
   listCodes,
   listDocuments,
   listOnboardingRecords,
   listPlayers,
+  listClubInviteApplications,
+  listClubInviteTrialCodes,
   listSimpleRegistrations,
   listTrialApplications,
   programmes,
+  reviewClubInviteApplication,
   reviewTrialApplication,
+  resendClubInviteTrialCodeEmail,
   resendSimpleRegistrationEmail,
   simulateCodeEmail,
   validateOneTimeCode,
@@ -71,6 +78,22 @@ const getTrialApplications = async (_req, res, next) => {
   }
 };
 
+const getClubInviteApplications = async (_req, res, next) => {
+  try {
+    res.json(await listClubInviteApplications());
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getClubInviteTrialCodeLookup = async (req, res, next) => {
+  try {
+    res.json(await getClubInviteTrialCodeByMembership(req.params.membershipCode));
+  } catch (error) {
+    next(error);
+  }
+};
+
 const postPayFastNotification = async (req, res, next) => {
   try {
     await handlePayFastNotification(req.body);
@@ -104,9 +127,79 @@ const patchAdminTrialReview = async (req, res, next) => {
   }
 };
 
+const patchAdminClubInviteApplicationReview = async (req, res, next) => {
+  try {
+    const result = await reviewClubInviteApplication(req.params.id, req.body.status);
+    await logAuditEvent({
+      actor: req.user,
+      action: "CLUB_INVITE_APPLICATION_REVIEW",
+      entityType: "ClubInviteApplication",
+      entityId: req.params.id,
+      metadata: { status: req.body.status, generatedCodeId: result.code?.id || null },
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAdminPlayers = async (req, res, next) => {
   try {
     res.json(await listPlayers(req.query));
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getAdminClubInviteTrialCodes = async (_req, res, next) => {
+  try {
+    res.json(await listClubInviteTrialCodes());
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getAdminClubInviteApplications = async (_req, res, next) => {
+  try {
+    res.json(await listClubInviteApplications());
+  } catch (error) {
+    next(error);
+  }
+};
+
+const postAdminClubInviteTrialCode = async (req, res, next) => {
+  try {
+    const invite = await createClubInviteTrialCode(req.body);
+    await logAuditEvent({
+      actor: req.user,
+      action: "CLUB_INVITE_TRIAL_CODE_GENERATED",
+      entityType: "ClubInviteTrialCode",
+      entityId: invite.id,
+      metadata: {
+        membershipCode: invite.membershipCode,
+        inviteCode: invite.inviteCode,
+      },
+    });
+    res.status(201).json(invite);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const postAdminClubInviteTrialCodeEmail = async (req, res, next) => {
+  try {
+    const invite = await resendClubInviteTrialCodeEmail(req.params.id);
+    await logAuditEvent({
+      actor: req.user,
+      action: "CLUB_INVITE_TRIAL_CODE_EMAIL_SENT",
+      entityType: "ClubInviteTrialCode",
+      entityId: invite.id,
+      metadata: {
+        membershipCode: invite.membershipCode,
+        inviteCode: invite.inviteCode,
+      },
+    });
+    res.status(201).json(invite);
   } catch (error) {
     next(error);
   }
@@ -235,6 +328,19 @@ const postDocumentUpload = async (req, res, next) => {
   }
 };
 
+const postTrialBirthCertificateUpload = async (req, res, next) => {
+  try {
+    const document = await createTrialBirthCertificateUpload({
+      trialApplicationId: req.params.id,
+      file: req.file,
+    });
+
+    res.status(201).json(document);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAdminOnboardingRecords = async (_req, res, next) => {
   try {
     res.json(await listOnboardingRecords());
@@ -321,12 +427,19 @@ module.exports = {
   postPayFastNotification,
   postTrialApplication,
   getTrialApplications,
+  getClubInviteApplications,
+  getClubInviteTrialCodeLookup,
   postSimpleRegistration,
   patchSimpleRegistrationPayment,
   getSimpleRegistrations,
   getAdminTrialApplications,
   patchAdminTrialReview,
+  patchAdminClubInviteApplicationReview,
   getAdminPlayers,
+  getAdminClubInviteTrialCodes,
+  getAdminClubInviteApplications,
+  postAdminClubInviteTrialCode,
+  postAdminClubInviteTrialCodeEmail,
   postAdminRenewalCode,
   postAdminBulkRenewalCodes,
   getAdminCodes,
@@ -335,6 +448,7 @@ module.exports = {
   postValidateCode,
   postOnboarding,
   postDocumentUpload,
+  postTrialBirthCertificateUpload,
   getAdminOnboardingRecords,
   getAdminDocuments,
   getAdminDocument,

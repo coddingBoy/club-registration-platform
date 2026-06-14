@@ -393,6 +393,26 @@ input[type="file"] {
   margin-top: 1rem;
 }
 
+.payment-note {
+  margin: 0 0 1rem;
+  border-left: 4px solid #c1121f;
+  background: #fff4f5;
+  padding: 0.85rem 1rem;
+  color: #11151c;
+}
+
+.payment-note strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+}
+
+.payment-note p {
+  margin: 0;
+  color: #545b67;
+  font-weight: 700;
+}
+
 .calculated-panel {
   display: grid;
   align-content: center;
@@ -693,6 +713,16 @@ input[type="file"] {
   gap: 1.4rem;
 }
 
+.admin-inline-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+  border: 1px solid #d9dce2;
+  background: #f8f9fb;
+  padding: 1rem;
+}
+
 .admin-table-section {
   display: grid;
   gap: 0.7rem;
@@ -778,11 +808,35 @@ input[type="file"] {
   line-height: 1.35;
 }
 
+.table-subtext {
+  display: block;
+  margin-top: 0.2rem;
+  color: #545b67;
+  font-size: 0.72rem;
+}
+
 .table-action-button {
   min-height: 34px;
   padding: 0 0.65rem;
   font-size: 0.72rem;
   white-space: nowrap;
+}
+
+.table-inline-button {
+  display: block;
+  width: max-content;
+  margin-top: 0.35rem;
+}
+
+.table-action-button.danger {
+  border-color: #c1121f;
+  color: #9f0f19;
+}
+
+.table-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .admin-empty-message {

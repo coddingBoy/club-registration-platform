@@ -6,14 +6,21 @@ const {
   getAdminDocumentFile,
   getAdminDocuments,
   getAdminExportCsv,
+  getAdminClubInviteTrialCodes,
+  getAdminClubInviteApplications,
   getAdminOnboardingRecords,
   getAdminPlayers,
   getAdminTrialApplications,
   getProgrammes,
+  getClubInviteApplications,
+  getClubInviteTrialCodeLookup,
   getSimpleRegistrations,
   getTrialApplications,
   patchAdminTrialReview,
+  patchAdminClubInviteApplicationReview,
   postAdminCodeEmail,
+  postAdminClubInviteTrialCode,
+  postAdminClubInviteTrialCodeEmail,
   postAdminSimpleRegistrationEmail,
   postAdminBulkRenewalCodes,
   postAdminRenewalCode,
@@ -22,6 +29,7 @@ const {
   postPayFastNotification,
   patchSimpleRegistrationPayment,
   postSimpleRegistration,
+  postTrialBirthCertificateUpload,
   postTrialApplication,
   postValidateCode,
 } = require("../controllers/academyController");
@@ -36,6 +44,13 @@ const router = express.Router();
 router.get("/programmes", getProgrammes);
 router.get("/trials", getTrialApplications);
 router.post("/trials", postTrialApplication);
+router.get("/club-invite-applications", getClubInviteApplications);
+router.get("/club-invite-trials/:membershipCode", getClubInviteTrialCodeLookup);
+router.post(
+  "/trials/:id/birth-certificate",
+  upload.single("document"),
+  postTrialBirthCertificateUpload,
+);
 router.get("/simple-registrations", getSimpleRegistrations);
 router.post("/simple-registrations", postSimpleRegistration);
 router.patch("/simple-registrations/:id/simulate-payment", patchSimpleRegistrationPayment);
@@ -51,6 +66,19 @@ router.post("/payments/payfast/itn", postPayFastNotification);
 
 router.get("/admin/trials", adminRead, getAdminTrialApplications);
 router.patch("/admin/trials/:id/review", adminWrite, patchAdminTrialReview);
+router.get("/admin/club-invite-applications", adminRead, getAdminClubInviteApplications);
+router.patch(
+  "/admin/club-invite-applications/:id/review",
+  adminWrite,
+  patchAdminClubInviteApplicationReview,
+);
+router.get("/admin/club-invite-trials", adminRead, getAdminClubInviteTrialCodes);
+router.post("/admin/club-invite-trials", adminWrite, postAdminClubInviteTrialCode);
+router.post(
+  "/admin/club-invite-trials/:id/send-email",
+  adminWrite,
+  postAdminClubInviteTrialCodeEmail,
+);
 router.get("/admin/players", adminRead, getAdminPlayers);
 router.post("/admin/renewal-codes", adminWrite, postAdminRenewalCode);
 router.post("/admin/renewal-codes/bulk", adminWrite, postAdminBulkRenewalCodes);

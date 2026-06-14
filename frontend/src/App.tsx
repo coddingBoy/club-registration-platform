@@ -11,18 +11,26 @@ import { getSimpleRegistrationForm } from "./data/registrationForms";
 import { programmes } from "./data/programmes";
 import type {
   AdminSession,
+  ClubInviteApplication,
   AppTab,
+  ClubInviteTrialCode,
   GeneratedCode,
   OnboardingCompletion,
   SimpleRegistrationRecord,
   SimpleRegistrationType,
   TrialApplication,
-  TrialOnboardingCredentials,
 } from "./types";
 import {
   getSimpleRegistrations,
+  getClubInviteApplications,
   getTrialApplications,
+  fetchAdminDocumentFile,
+  createClubInviteTrialCode,
+  getClubInviteTrialCodes,
+  reviewTrialApplication,
+  reviewClubInviteApplication,
   resendCodeEmail,
+  resendClubInviteTrialCodeEmail,
   resendSimpleRegistrationEmail,
 } from "./utils/api";
 import { loadFromStorage, saveToStorage } from "./utils/storage";
@@ -60,15 +68,18 @@ function App() {
     loadFromStorage(storageKeys.generatedCodes, []),
   );
   const [trialApplications, setTrialApplications] = useState<TrialApplication[]>([]);
+  const [clubInviteApplications, setClubInviteApplications] = useState<
+    ClubInviteApplication[]
+  >([]);
+  const [clubInviteTrialCodes, setClubInviteTrialCodes] = useState<
+    ClubInviteTrialCode[]
+  >([]);
   const [simpleRegistrations, setSimpleRegistrations] = useState<
     SimpleRegistrationRecord[]
   >([]);
   const [onboardingCompletions, setOnboardingCompletions] = useState<
     OnboardingCompletion[]
   >(() => loadFromStorage(storageKeys.onboardingCompletions, []));
-  const [onboardingPrefill, setOnboardingPrefill] =
-    useState<TrialOnboardingCredentials | null>(null);
-
   useEffect(() => {
     saveToStorage(storageKeys.activeTab, activeTab);
   }, [activeTab]);
@@ -84,10 +95,15 @@ function App() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([getTrialApplications(), getSimpleRegistrations()])
-      .then(([trials, registrations]) => {
+    Promise.all([
+      getTrialApplications(),
+      getClubInviteApplications(),
+      getSimpleRegistrations(),
+    ])
+      .then(([trials, clubInvites, registrations]) => {
         if (!active) return;
         setTrialApplications(trials.map(mapDatabaseTrial));
+        setClubInviteApplications(clubInvites.map(mapDatabaseClubInviteApplication));
         setSimpleRegistrations(registrations.map(mapDatabaseSimpleRegistration));
       })
       .catch((error) => {
@@ -100,10 +116,36 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!adminSession) {
+      return;
+    }
+
+    let active = true;
+
+    getClubInviteTrialCodes(adminSession.token)
+      .then((invites) => {
+        if (!active) return;
+        setClubInviteTrialCodes(invites.map(mapClubInviteTrialCode));
+      })
+      .catch((error) => {
+        console.error("Failed to load club invite trial codes", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [adminSession]);
+
+  useEffect(() => {
     saveToStorage(storageKeys.onboardingCompletions, onboardingCompletions);
   }, [onboardingCompletions]);
 
   const addTrialApplication = (application: TrialApplication) => {
+    if (application.clubInviteCode) {
+      setClubInviteApplications((current) => [application, ...current]);
+      return;
+    }
+
     setTrialApplications((current) => [application, ...current]);
   };
 
@@ -154,6 +196,74 @@ function App() {
     );
   };
 
+  const reviewTrial = async (
+    trialApplicationId: string,
+    status: "SUCCESSFUL" | "UNSUCCESSFUL",
+  ) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const result = await reviewTrialApplication(
+      trialApplicationId,
+      status,
+      adminSession.token,
+    );
+
+    setTrialApplications((current) =>
+      current.map((application) =>
+        application.id === trialApplicationId
+          ? {
+              ...application,
+              status: status === "SUCCESSFUL" ? "successful" : "unsuccessful",
+              authorisationCode: result.code?.code ?? application.authorisationCode,
+              authorisationCodeId: result.code?.id ?? application.authorisationCodeId,
+              membershipNumber:
+                result.code?.membershipNumber ??
+                application.membershipNumber,
+              emailStatus: result.emailLog?.status,
+              emailError: result.emailLog?.error ?? undefined,
+              emailSentAt: result.emailLog?.createdAt,
+            }
+          : application,
+      ),
+    );
+  };
+
+  const reviewClubInvite = async (
+    applicationId: string,
+    status: "SUCCESSFUL" | "UNSUCCESSFUL",
+  ) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const result = await reviewClubInviteApplication(
+      applicationId,
+      status,
+      adminSession.token,
+    );
+
+    setClubInviteApplications((current) =>
+      current.map((application) =>
+        application.id === applicationId
+          ? {
+              ...application,
+              status: status === "SUCCESSFUL" ? "successful" : "unsuccessful",
+              authorisationCode: result.code?.code ?? application.authorisationCode,
+              authorisationCodeId: result.code?.id ?? application.authorisationCodeId,
+              membershipNumber:
+                result.code?.membershipNumber ??
+                application.membershipNumber,
+              emailStatus: result.emailLog?.status,
+              emailError: result.emailLog?.error ?? undefined,
+              emailSentAt: result.emailLog?.createdAt,
+            }
+          : application,
+      ),
+    );
+  };
+
   const resendSimpleRegistrationConfirmation = async (registrationId: string) => {
     if (!adminSession) {
       throw new Error("Admin session expired. Please sign in again.");
@@ -178,6 +288,47 @@ function App() {
     );
   };
 
+  const previewTrialBirthCertificate = async (documentId: string) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const blob = await fetchAdminDocumentFile(documentId, adminSession.token);
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  const generateClubInviteTrialCode = async (payload: {
+    playerName: string;
+    email: string;
+    emailConfirm: string;
+  }) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const invite = await createClubInviteTrialCode(payload, adminSession.token);
+    setClubInviteTrialCodes((current) => [
+      mapClubInviteTrialCode(invite),
+      ...current,
+    ]);
+  };
+
+  const resendClubInviteTrialCode = async (inviteId: string) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const invite = await resendClubInviteTrialCodeEmail(inviteId, adminSession.token);
+
+    setClubInviteTrialCodes((current) =>
+      current.map((currentInvite) =>
+        currentInvite.id === inviteId ? mapClubInviteTrialCode(invite) : currentInvite,
+      ),
+    );
+  };
+
   const simpleFormConfig = isSimpleRegistrationTab(activeTab)
     ? getSimpleRegistrationForm(activeTab)
     : undefined;
@@ -194,7 +345,6 @@ function App() {
         {activeTab === "player" && (
           <PlayerRegistration
             onTrialApplicationSaved={addTrialApplication}
-            onTrialCredentialsIssued={setOnboardingPrefill}
             onContinueToOnboarding={() => setActiveTab("onboarding")}
           />
         )}
@@ -217,9 +367,16 @@ function App() {
             {adminSession && (
               <AdminPanel
                 trialApplications={trialApplications}
+                clubInviteApplications={clubInviteApplications}
+                clubInviteTrialCodes={clubInviteTrialCodes}
                 simpleRegistrations={simpleRegistrations}
                 onboardingCompletions={onboardingCompletions}
+                onGenerateClubInviteTrialCode={generateClubInviteTrialCode}
+                onResendClubInviteTrialCode={resendClubInviteTrialCode}
                 onResendTrialEmail={resendTrialEmail}
+                onReviewTrial={reviewTrial}
+                onReviewClubInviteApplication={reviewClubInvite}
+                onPreviewTrialBirthCertificate={previewTrialBirthCertificate}
                 onResendSimpleRegistrationEmail={resendSimpleRegistrationConfirmation}
               />
             )}
@@ -228,13 +385,9 @@ function App() {
 
         {activeTab === "onboarding" && (
           <UrbanWarriorOnboarding
-            key={
-              onboardingPrefill
-                ? `${onboardingPrefill.authorisationCode}-${onboardingPrefill.membershipNumber}`
-                : "manual-onboarding"
-            }
+            key="manual-onboarding"
             codes={generatedCodes}
-            prefill={onboardingPrefill}
+            prefill={null}
             onUseCode={markCodeAsUsed}
             onComplete={addOnboardingCompletion}
           />
@@ -289,18 +442,70 @@ function mapDatabaseTrial(trial: Awaited<ReturnType<typeof getTrialApplications>
     playerName: trial.playerName,
     playerSurname: trial.playerSurname,
     dateOfBirth: trial.dateOfBirth?.slice(0, 10) ?? "",
+    ageGroup: trial.ageGroup ?? "",
+    gender: trial.gender ?? "",
     guardianName: trial.guardianName,
+    guardianSurname: trial.guardianSurname ?? "",
+    guardianRelation: trial.guardianRelation ?? "",
     guardianEmail: trial.guardianEmail,
+    guardianEmailConfirm: trial.guardianEmailConfirm ?? trial.guardianEmail,
     guardianPhone: trial.guardianPhone,
+    province: trial.province ?? "",
+    allergiesOrConditions: trial.allergiesOrConditions ?? "",
+    birthCertificateFileName: trial.birthCertificateFileName ?? "",
+    birthCertificateDocumentId: trial.birthCertificateDocumentId ?? undefined,
+    birthCertificateFileUrl: trial.birthCertificateFileUrl ?? undefined,
     submittedAt: trial.createdAt,
     status: mapTrialStatus(trial.status),
     paymentConfirmed: trial.status !== "PAYMENT_PENDING",
     authorisationCode: trial.authorisationCode?.code,
     authorisationCodeId: trial.authorisationCode?.id,
-    membershipNumber: trial.authorisationCode?.membershipNumber ?? undefined,
-    emailStatus: guardianEmailLog?.status,
-    emailError: guardianEmailLog?.error ?? undefined,
-    emailSentAt: guardianEmailLog?.createdAt,
+    membershipNumber:
+      trial.membershipNumber ??
+      trial.authorisationCode?.membershipNumber ??
+      undefined,
+    emailStatus: guardianEmailLog?.status ?? trial.emailStatus,
+    emailError: guardianEmailLog?.error ?? trial.emailError ?? undefined,
+    emailSentAt: guardianEmailLog?.createdAt ?? trial.emailSentAt,
+  };
+}
+
+function mapDatabaseClubInviteApplication(
+  application: Awaited<ReturnType<typeof getClubInviteApplications>>[number],
+): ClubInviteApplication {
+  const guardianEmailLog = application.authorisationCode?.emailLogs?.find(
+    (log) => log.to === application.guardianEmail,
+  );
+
+  return {
+    id: application.id,
+    membershipCode: application.membershipCode ?? application.membershipNumber ?? "",
+    clubInviteCode: application.inviteCode ?? "",
+    playerName: application.playerName,
+    playerSurname: application.playerSurname,
+    dateOfBirth: application.dateOfBirth?.slice(0, 10) ?? "",
+    ageGroup: application.ageGroup ?? "",
+    gender: application.gender ?? "",
+    guardianName: application.guardianName,
+    guardianSurname: application.guardianSurname ?? "",
+    guardianRelation: application.guardianRelation ?? "",
+    guardianEmail: application.guardianEmail,
+    guardianEmailConfirm: application.guardianEmailConfirm ?? application.guardianEmail,
+    guardianPhone: application.guardianPhone,
+    province: application.province ?? "",
+    allergiesOrConditions: application.allergiesOrConditions ?? "",
+    birthCertificateFileName: application.birthCertificateFileName ?? "",
+    birthCertificateDocumentId: application.birthCertificateDocumentId ?? undefined,
+    birthCertificateFileUrl: application.birthCertificateFileUrl ?? undefined,
+    submittedAt: application.createdAt,
+    status: mapTrialStatus(application.status),
+    paymentConfirmed: application.status !== "PAYMENT_PENDING",
+    authorisationCode: application.authorisationCode?.code,
+    authorisationCodeId: application.authorisationCode?.id,
+    membershipNumber: application.membershipNumber ?? application.membershipCode ?? undefined,
+    emailStatus: guardianEmailLog?.status ?? application.emailStatus,
+    emailError: guardianEmailLog?.error ?? application.emailError ?? undefined,
+    emailSentAt: guardianEmailLog?.createdAt ?? application.emailSentAt,
   };
 }
 
@@ -334,6 +539,23 @@ function mapDatabaseSimpleRegistration(
     specificFields: registration.specificFields ?? {},
     submittedAt: registration.createdAt,
     emailSimulatedAt: registration.emailSimulatedAt ?? registration.createdAt,
+  };
+}
+
+function mapClubInviteTrialCode(
+  invite: Awaited<ReturnType<typeof getClubInviteTrialCodes>>[number],
+): ClubInviteTrialCode {
+  return {
+    id: invite.id,
+    playerName: invite.playerName,
+    email: invite.email,
+    emailConfirm: invite.emailConfirm,
+    membershipCode: invite.membershipCode,
+    inviteCode: invite.inviteCode,
+    emailStatus: invite.emailStatus ?? undefined,
+    emailError: invite.emailError ?? undefined,
+    emailSentAt: invite.emailSentAt ?? undefined,
+    createdAt: invite.createdAt,
   };
 }
 

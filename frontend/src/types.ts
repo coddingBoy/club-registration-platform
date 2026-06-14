@@ -62,12 +62,24 @@ export type PlayerRegistration = {
 };
 
 export type TrialRegistration = {
+  membershipCode?: string;
+  clubInviteCode?: string;
   playerName: string;
   playerSurname: string;
   dateOfBirth: string;
+  ageGroup: string;
+  gender: string;
   guardianName: string;
+  guardianSurname: string;
+  guardianRelation: string;
   guardianEmail: string;
+  guardianEmailConfirm: string;
   guardianPhone: string;
+  province: string;
+  allergiesOrConditions: string;
+  birthCertificateFileName: string;
+  birthCertificateDocumentId?: string;
+  birthCertificateFileUrl?: string;
 };
 
 export type TrialApplicationStatus =
@@ -77,6 +89,19 @@ export type TrialApplicationStatus =
   | "unsuccessful";
 
 export type TrialApplication = TrialRegistration & {
+  id: string;
+  submittedAt: string;
+  status: TrialApplicationStatus;
+  paymentConfirmed: boolean;
+  authorisationCode?: string;
+  authorisationCodeId?: string;
+  membershipNumber?: string;
+  emailStatus?: string;
+  emailError?: string;
+  emailSentAt?: string;
+};
+
+export type ClubInviteApplication = TrialRegistration & {
   id: string;
   submittedAt: string;
   status: TrialApplicationStatus;
@@ -185,4 +210,17 @@ export type SimpleRegistrationRecord = {
   specificFields: Record<string, string>;
   submittedAt: string;
   emailSimulatedAt: string;
+};
+
+export type ClubInviteTrialCode = {
+  id: string;
+  playerName: string;
+  email: string;
+  emailConfirm: string;
+  membershipCode: string;
+  inviteCode: string;
+  emailStatus?: string;
+  emailError?: string;
+  emailSentAt?: string;
+  createdAt: string;
 };

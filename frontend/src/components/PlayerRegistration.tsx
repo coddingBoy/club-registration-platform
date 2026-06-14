@@ -1,20 +1,18 @@
 import { useState } from "react";
-import type { TrialApplication, TrialOnboardingCredentials } from "../types";
+import type { TrialApplication } from "../types";
 import { validateCode } from "../utils/api";
 import FormField from "./FormField";
 import TrialRegistration from "./TrialRegistration";
 
-type PlayerJourney = "renewal" | "trial";
+type PlayerJourney = "trial" | "club-invite-trial" | "renewal";
 
 type PlayerRegistrationProps = {
   onTrialApplicationSaved: (application: TrialApplication) => void;
-  onTrialCredentialsIssued: (credentials: TrialOnboardingCredentials) => void;
   onContinueToOnboarding: () => void;
 };
 
 function PlayerRegistration({
   onTrialApplicationSaved,
-  onTrialCredentialsIssued,
   onContinueToOnboarding,
 }: PlayerRegistrationProps) {
   const [journey, setJourney] = useState<PlayerJourney>("trial");
@@ -49,8 +47,7 @@ function PlayerRegistration({
     <section className="form-card">
       <div className="intro-panel">
         <p>
-          Player registration starts with one of two paths: existing players use
-          Renewal, and new players apply through Trial first.
+          Player registration starts with New Trial, Club Invite Trial, or Renewal.
         </p>
       </div>
 
@@ -65,6 +62,16 @@ function PlayerRegistration({
             }}
           >
             New Trial
+          </button>
+          <button
+            className={journey === "club-invite-trial" ? "active" : ""}
+            type="button"
+            onClick={() => {
+              setJourney("club-invite-trial");
+              setMessage("");
+            }}
+          >
+            Club Invite Trial
           </button>
           <button
             className={journey === "renewal" ? "active" : ""}
@@ -117,10 +124,15 @@ function PlayerRegistration({
           <div className="path-panel embedded-panel">
             <TrialRegistration
               onApplicationSaved={onTrialApplicationSaved}
-              onCredentialsIssued={(credentials) => {
-                onTrialCredentialsIssued(credentials);
-                onContinueToOnboarding();
-              }}
+            />
+          </div>
+        )}
+
+        {journey === "club-invite-trial" && (
+          <div className="path-panel embedded-panel">
+            <TrialRegistration
+              mode="club-invite-trial"
+              onApplicationSaved={onTrialApplicationSaved}
             />
           </div>
         )}

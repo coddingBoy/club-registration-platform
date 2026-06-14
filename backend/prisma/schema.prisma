@@ -78,6 +78,7 @@ model Player {
   programmeId       String?
   status            PlayerStatus       @default(TRIAL_PENDING)
   trialApplications TrialApplication[]
+  clubInviteApplications ClubInviteApplication[]
   codes             OneTimeCode[]
   onboardingRecords OnboardingRecord[]
   documents         Document[]
@@ -93,9 +94,17 @@ model TrialApplication {
   playerName       String
   playerSurname    String
   dateOfBirth      DateTime?
+  ageGroup         String?
+  gender           String?
   guardianName     String
+  guardianSurname  String?
+  guardianRelation String?
   guardianEmail    String
+  guardianEmailConfirm String?
   guardianPhone    String
+  province         String?
+  allergiesOrConditions String?
+  birthCertificateFileName String?
   trialFeeAmount   Int         @default(500)
   status           TrialStatus @default(PAID)
   authorisationCode OneTimeCode?
@@ -113,6 +122,8 @@ model OneTimeCode {
   player             Player?             @relation(fields: [playerId], references: [id])
   trialApplicationId String?             @unique
   trialApplication   TrialApplication?   @relation(fields: [trialApplicationId], references: [id])
+  clubInviteApplicationId String?        @unique
+  clubInviteApplication   ClubInviteApplication? @relation(fields: [clubInviteApplicationId], references: [id])
   membershipNumber   String?
   email              String
   usedAt             DateTime?
@@ -227,6 +238,49 @@ model SimpleRegistration {
   emailSimulatedAt DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+model ClubInviteTrialCode {
+  id                    String                  @id @default(cuid())
+  playerName            String
+  email                 String
+  emailConfirm          String
+  membershipCode        String                  @unique
+  inviteCode            String                  @unique
+  emailStatus           String?
+  emailError            String?
+  emailSentAt           DateTime?
+  clubInviteApplications ClubInviteApplication[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+}
+
+model ClubInviteApplication {
+  id                       String              @id @default(cuid())
+  clubInviteTrialCodeId    String
+  clubInviteTrialCode      ClubInviteTrialCode @relation(fields: [clubInviteTrialCodeId], references: [id])
+  playerId                 String?
+  player                   Player?             @relation(fields: [playerId], references: [id])
+  playerName               String
+  playerSurname            String
+  dateOfBirth              DateTime?
+  ageGroup                 String?
+  gender                   String?
+  guardianName             String
+  guardianSurname          String?
+  guardianRelation         String?
+  guardianEmail            String
+  guardianEmailConfirm     String?
+  guardianPhone            String
+  province                 String?
+  allergiesOrConditions    String?
+  birthCertificateFileName String?
+  membershipCode           String
+  inviteCode               String
+  status                   TrialStatus         @default(PAID)
+  authorisationCode        OneTimeCode?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
 }
 
 model Document {
