@@ -521,6 +521,24 @@ const resendClubInviteTrialCodeEmail = async (inviteId) => {
   });
 };
 
+const resetTestingData = async () =>
+  prisma.$transaction(async (tx) => {
+    await tx.emailLog.deleteMany();
+    await tx.auditLog.deleteMany();
+    await tx.document.deleteMany();
+    await tx.onboardingRecord.deleteMany();
+    await tx.oneTimeCode.deleteMany();
+    await tx.trialApplication.deleteMany();
+    await tx.clubInviteApplication.deleteMany();
+    await tx.clubInviteTrialCode.deleteMany();
+    await tx.simpleRegistration.deleteMany();
+    await tx.payment.deleteMany();
+    await tx.parentAccount.deleteMany();
+    await tx.player.deleteMany();
+
+    return { resetAt: new Date().toISOString() };
+  });
+
 const reviewTrialApplication = async (trialApplicationId, status) => {
   if (!["SUCCESSFUL", "UNSUCCESSFUL"].includes(status)) {
     throw new AppError("Trial status must be SUCCESSFUL or UNSUCCESSFUL", 400);
@@ -1161,6 +1179,7 @@ module.exports = {
   getClubInviteTrialCodeByMembership,
   createClubInviteTrialCode,
   resendClubInviteTrialCodeEmail,
+  resetTestingData,
   createRenewalCode,
   bulkCreateRenewalCodes,
   listCodes,

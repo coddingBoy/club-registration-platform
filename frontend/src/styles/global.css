@@ -505,6 +505,11 @@ input[type="file"] {
   color: #ffffff;
 }
 
+.secondary-button.danger-button {
+  border-color: #c1121f;
+  color: #9f0f19;
+}
+
 .secondary-button:disabled {
   cursor: not-allowed;
   border-color: #c7ccd5;

@@ -359,6 +359,22 @@ export async function resendClubInviteTrialCodeEmail(inviteId: string, token: st
   }>;
 }
 
+export async function resetTestingData(token: string) {
+  const response = await fetch(`${apiBaseUrl}/api/academy/admin/testing/reset-data`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Testing data reset failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{ resetAt: string }>;
+}
+
 export async function reviewTrialApplication(
   trialApplicationId: string,
   status: "SUCCESSFUL" | "UNSUCCESSFUL",

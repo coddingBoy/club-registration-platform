@@ -29,6 +29,7 @@ import {
   getClubInviteTrialCodes,
   reviewTrialApplication,
   reviewClubInviteApplication,
+  resetTestingData,
   resendCodeEmail,
   resendClubInviteTrialCodeEmail,
   resendSimpleRegistrationEmail,
@@ -329,6 +330,20 @@ function App() {
     );
   };
 
+  const resetAdminTestingData = async () => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    await resetTestingData(adminSession.token);
+    setTrialApplications([]);
+    setClubInviteApplications([]);
+    setClubInviteTrialCodes([]);
+    setSimpleRegistrations([]);
+    setGeneratedCodes([]);
+    setOnboardingCompletions([]);
+  };
+
   const simpleFormConfig = isSimpleRegistrationTab(activeTab)
     ? getSimpleRegistrationForm(activeTab)
     : undefined;
@@ -378,6 +393,7 @@ function App() {
                 onReviewClubInviteApplication={reviewClubInvite}
                 onPreviewTrialBirthCertificate={previewTrialBirthCertificate}
                 onResendSimpleRegistrationEmail={resendSimpleRegistrationConfirmation}
+                onResetTestingData={resetAdminTestingData}
               />
             )}
           </>

@@ -32,6 +32,7 @@ type AdminPanelProps = {
   ) => Promise<void>;
   onPreviewTrialBirthCertificate: (documentId: string) => Promise<void>;
   onResendSimpleRegistrationEmail: (registrationId: string) => Promise<void>;
+  onResetTestingData: () => Promise<void>;
 };
 
 const simpleRegistrationLabels: Record<SimpleRegistrationType, string> = {
@@ -56,6 +57,7 @@ function AdminPanel({
   onReviewClubInviteApplication,
   onPreviewTrialBirthCertificate,
   onResendSimpleRegistrationEmail,
+  onResetTestingData,
 }: AdminPanelProps) {
   const [resendingCodeId, setResendingCodeId] = useState("");
   const [reviewingTrialId, setReviewingTrialId] = useState("");
@@ -63,6 +65,7 @@ function AdminPanel({
   const [previewingDocumentId, setPreviewingDocumentId] = useState("");
   const [resendingRegistrationId, setResendingRegistrationId] = useState("");
   const [resendingClubInviteId, setResendingClubInviteId] = useState("");
+  const [isResettingData, setIsResettingData] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
   const [inviteValues, setInviteValues] = useState({
     playerName: "",
@@ -242,6 +245,28 @@ function AdminPanel({
     }
   };
 
+  const resetTestingData = async () => {
+    const confirmed = window.confirm(
+      "Reset all testing data? This will delete players, applications, codes, onboarding records, payments, documents, and email logs. Admin login users will remain.",
+    );
+
+    if (!confirmed) return;
+
+    setIsResettingData(true);
+    setResendMessage("");
+
+    try {
+      await onResetTestingData();
+      setResendMessage("Testing data has been reset.");
+    } catch (error) {
+      setResendMessage(
+        error instanceof Error ? error.message : "Testing data reset failed.",
+      );
+    } finally {
+      setIsResettingData(false);
+    }
+  };
+
   const exportCsv = () => {
     const rows = [
       ["type", "name", "email", "reference", "status", "programmeOrMembership", "submittedOrCompletedAt"],
@@ -342,6 +367,14 @@ function AdminPanel({
         <div className="admin-toolbar clean-toolbar">
           <button className="secondary-button" type="button" onClick={exportCsv}>
             Export CSV
+          </button>
+          <button
+            className="secondary-button danger-button"
+            type="button"
+            onClick={() => void resetTestingData()}
+            disabled={isResettingData}
+          >
+            {isResettingData ? "Resetting..." : "Reset Testing Data"}
           </button>
         </div>
         {resendMessage && <p className="admin-action-message">{resendMessage}</p>}

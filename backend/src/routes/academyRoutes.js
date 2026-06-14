@@ -21,6 +21,7 @@ const {
   postAdminCodeEmail,
   postAdminClubInviteTrialCode,
   postAdminClubInviteTrialCodeEmail,
+  postAdminResetTestingData,
   postAdminSimpleRegistrationEmail,
   postAdminBulkRenewalCodes,
   postAdminRenewalCode,
@@ -79,6 +80,7 @@ router.post(
   adminWrite,
   postAdminClubInviteTrialCodeEmail,
 );
+router.post("/admin/testing/reset-data", adminWrite, postAdminResetTestingData);
 router.get("/admin/players", adminRead, getAdminPlayers);
 router.post("/admin/renewal-codes", adminWrite, postAdminRenewalCode);
 router.post("/admin/renewal-codes/bulk", adminWrite, postAdminBulkRenewalCodes);

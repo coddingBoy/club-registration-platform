@@ -22,6 +22,7 @@ const {
   programmes,
   reviewClubInviteApplication,
   reviewTrialApplication,
+  resetTestingData,
   resendClubInviteTrialCodeEmail,
   resendSimpleRegistrationEmail,
   simulateCodeEmail,
@@ -200,6 +201,22 @@ const postAdminClubInviteTrialCodeEmail = async (req, res, next) => {
       },
     });
     res.status(201).json(invite);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const postAdminResetTestingData = async (req, res, next) => {
+  try {
+    const result = await resetTestingData();
+    await logAuditEvent({
+      actor: req.user,
+      action: "RESET_TESTING_DATA",
+      entityType: "Database",
+      entityId: null,
+      metadata: result,
+    });
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -440,6 +457,7 @@ module.exports = {
   getAdminClubInviteApplications,
   postAdminClubInviteTrialCode,
   postAdminClubInviteTrialCodeEmail,
+  postAdminResetTestingData,
   postAdminRenewalCode,
   postAdminBulkRenewalCodes,
   getAdminCodes,
