@@ -1,6 +1,8 @@
+import { useState, type ReactNode } from "react";
 import type {
   OnboardingCompletion,
   SimpleRegistrationRecord,
+  SimpleRegistrationType,
   TrialApplication,
 } from "../types";
 
@@ -8,13 +10,47 @@ type AdminPanelProps = {
   trialApplications: TrialApplication[];
   simpleRegistrations: SimpleRegistrationRecord[];
   onboardingCompletions: OnboardingCompletion[];
+  onResendTrialEmail: (codeId: string) => Promise<void>;
+};
+
+const simpleRegistrationLabels: Record<SimpleRegistrationType, string> = {
+  "general-member": "General Member",
+  "holiday-camp": "Holiday Camp",
+  "meet-greet": "Meet & Greet",
+  "urban-lounge": "Urban Lounge Event",
+  "club-event": "Club Event",
+  "match-tickets": "Match Tickets",
 };
 
 function AdminPanel({
   trialApplications,
   simpleRegistrations,
   onboardingCompletions,
+  onResendTrialEmail,
 }: AdminPanelProps) {
+  const [resendingCodeId, setResendingCodeId] = useState("");
+  const [resendMessage, setResendMessage] = useState("");
+
+  const resendTrialEmail = async (application: TrialApplication) => {
+    if (!application.authorisationCodeId) return;
+
+    setResendingCodeId(application.authorisationCodeId);
+    setResendMessage("");
+
+    try {
+      await onResendTrialEmail(application.authorisationCodeId);
+      setResendMessage(
+        `Resent email to ${application.guardianEmail}. Check the Email Status column for delivery result.`,
+      );
+    } catch (error) {
+      setResendMessage(
+        error instanceof Error ? error.message : "Email resend failed. Please try again.",
+      );
+    } finally {
+      setResendingCodeId("");
+    }
+  };
+
   const exportCsv = () => {
     const rows = [
       ["type", "name", "email", "reference", "status", "programmeOrMembership", "submittedOrCompletedAt"],
@@ -62,13 +98,13 @@ function AdminPanel({
     <section className="form-card">
       <div className="intro-panel">
         <p>
-          New Trial applications now automatically create a membership number and
-          onboarding authorisation code. Use this dashboard to review submitted data
-          and completion progress.
+          New Trial applications automatically create a membership number and
+          onboarding authorisation code. Records are grouped below by registration
+          type.
         </p>
       </div>
 
-      <div className="checkout-panel">
+      <div className="checkout-panel admin-panel">
         <div className="admin-summary-grid">
           <article className="status-card">
             <span>Trial Applications</span>
@@ -99,69 +135,173 @@ function AdminPanel({
             Export CSV
           </button>
         </div>
+        {resendMessage && <p className="admin-action-message">{resendMessage}</p>}
 
-        <div className="code-list">
-          <h2>New Trial Applications</h2>
-          {trialApplications.length === 0 && <p>No New Trial applications yet.</p>}
-          {trialApplications.map((application) => (
-            <article className="status-card review-card" key={application.id}>
-              <span>{getTrialStatusLabel(application.status)}</span>
-              <strong>
-                {application.playerName} {application.playerSurname}
-              </strong>
-              <p>Guardian email: {application.guardianEmail}</p>
-              <p>Guardian phone: {application.guardianPhone}</p>
-              <p>Submitted: {new Date(application.submittedAt).toLocaleString()}</p>
-              {application.authorisationCode ? (
-                <p>Authorisation code: {application.authorisationCode}</p>
+        <AdminTableSection title="New Trial Applications">
+          {trialApplications.length === 0 ? (
+            <EmptyTableMessage message="No New Trial applications yet." />
+          ) : (
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Guardian</th>
+                  <th>Phone</th>
+                  <th>Membership</th>
+                  <th>Authorisation Code</th>
+                  <th>Email Status</th>
+                  <th>Resend</th>
+                  <th>Status</th>
+                  <th>Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trialApplications.map((application) => (
+                  <tr key={application.id}>
+                    <td>
+                      <strong>
+                        {application.playerName} {application.playerSurname}
+                      </strong>
+                    </td>
+                    <td>{application.guardianEmail}</td>
+                    <td>{application.guardianPhone}</td>
+                    <td>{application.membershipNumber || "Not issued"}</td>
+                    <td>{application.authorisationCode || "Not issued"}</td>
+                    <td>
+                      <span className={getEmailStatusClass(application.emailStatus)}>
+                        {getEmailStatusLabel(application.emailStatus)}
+                      </span>
+                      {application.emailError && (
+                        <small className="table-error">{application.emailError}</small>
+                      )}
+                    </td>
+                    <td>
+                      <button
+                        className="secondary-button table-action-button"
+                        type="button"
+                        disabled={
+                          !application.authorisationCodeId ||
+                          resendingCodeId === application.authorisationCodeId
+                        }
+                        onClick={() => void resendTrialEmail(application)}
+                      >
+                        {resendingCodeId === application.authorisationCodeId
+                          ? "Sending..."
+                          : "Resend"}
+                      </button>
+                    </td>
+                    <td>
+                      <span className="table-status">
+                        {getTrialStatusLabel(application.status)}
+                      </span>
+                    </td>
+                    <td>{formatDateTime(application.submittedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </AdminTableSection>
+
+        <AdminTableSection title="Onboarding Completions">
+          {onboardingCompletions.length === 0 ? (
+            <EmptyTableMessage message="No completed onboarding records." />
+          ) : (
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Email</th>
+                  <th>Programme</th>
+                  <th>Passport</th>
+                  <th>Source</th>
+                  <th>Amount Paid</th>
+                  <th>Completed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {onboardingCompletions.map((completion) => (
+                  <tr key={completion.id}>
+                    <td>
+                      <strong>
+                        {completion.playerName} {completion.playerSurname}
+                      </strong>
+                    </td>
+                    <td>{completion.guardianEmail}</td>
+                    <td>{completion.programmeTitle}</td>
+                    <td>{completion.passportNumber}</td>
+                    <td>{getCodeTypeLabel(completion.codeType)}</td>
+                    <td>R {completion.amountPaid.toLocaleString("en-ZA")}</td>
+                    <td>{formatDateTime(completion.completedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </AdminTableSection>
+
+        {Object.entries(simpleRegistrationLabels).map(([type, label]) => {
+          const records = simpleRegistrations.filter(
+            (registration) => registration.type === type,
+          );
+
+          return (
+            <AdminTableSection title={label} key={type}>
+              {records.length === 0 ? (
+                <EmptyTableMessage message={`No ${label} submissions.`} />
               ) : (
-                <p>Authorisation code: not issued</p>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Reference</th>
+                      <th>Parent / Guardian</th>
+                      <th>Submitted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((registration) => (
+                      <tr key={registration.id}>
+                        <td>
+                          <strong>{registration.fullName}</strong>
+                        </td>
+                        <td>{registration.email}</td>
+                        <td>{registration.phone}</td>
+                        <td>{registration.referenceNumber}</td>
+                        <td>{registration.parentGuardian || "Not required"}</td>
+                        <td>{formatDateTime(registration.submittedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
-              {application.membershipNumber && (
-                <p>Membership number: {application.membershipNumber}</p>
-              )}
-            </article>
-          ))}
-        </div>
-
-        <div className="product-divider" />
-
-        <div className="code-list">
-          <h2>Onboarding Completion Status</h2>
-          {onboardingCompletions.length === 0 && <p>No completed onboarding records.</p>}
-          {onboardingCompletions.map((completion) => (
-            <article className="status-card" key={completion.id}>
-              <span>{getCodeTypeLabel(completion.codeType)}</span>
-              <strong>
-                {completion.playerName} {completion.playerSurname}
-              </strong>
-              <p>Programme: {completion.programmeTitle}</p>
-              <p>Passport: {completion.passportNumber}</p>
-              <p>Paid: R {completion.amountPaid.toLocaleString("en-ZA")}</p>
-              <p>Completed: {new Date(completion.completedAt).toLocaleString()}</p>
-            </article>
-          ))}
-        </div>
-
-        <div className="product-divider" />
-
-        <div className="code-list">
-          <h2>Other Registration Submissions</h2>
-          {simpleRegistrations.length === 0 && <p>No other registration submissions.</p>}
-          {simpleRegistrations.map((registration) => (
-            <article className="status-card" key={registration.id}>
-              <span>{registration.type}</span>
-              <strong>{registration.fullName}</strong>
-              <p>{registration.email}</p>
-              <p>Phone: {registration.phone}</p>
-              <p>Reference: {registration.referenceNumber}</p>
-              <p>Submitted: {new Date(registration.submittedAt).toLocaleString()}</p>
-            </article>
-          ))}
-        </div>
+            </AdminTableSection>
+          );
+        })}
       </div>
     </section>
   );
+}
+
+function AdminTableSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="admin-table-section">
+      <h2>{title}</h2>
+      <div className="admin-table-scroll">{children}</div>
+    </section>
+  );
+}
+
+function EmptyTableMessage({ message }: { message: string }) {
+  return <p className="admin-empty-message">{message}</p>;
 }
 
 function getTrialStatusLabel(status: TrialApplication["status"]) {
@@ -173,6 +313,27 @@ function getTrialStatusLabel(status: TrialApplication["status"]) {
 
 function getCodeTypeLabel(type: OnboardingCompletion["codeType"]) {
   return type === "trial-authorisation" ? "New Trial" : "Renewal";
+}
+
+function getEmailStatusLabel(status: string | undefined) {
+  if (status === "SENT") return "Sent";
+  if (status === "FAILED") return "Failed";
+  if (status === "SKIPPED_CONFIG") return "Not configured";
+  if (status === "PENDING") return "Pending";
+  return "Unknown";
+}
+
+function getEmailStatusClass(status: string | undefined) {
+  if (status === "SENT") return "table-status table-status-success";
+  if (status === "FAILED") return "table-status table-status-error";
+  return "table-status";
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("en-ZA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 export default AdminPanel;

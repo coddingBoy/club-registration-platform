@@ -151,6 +151,7 @@ const createTrialApplication = async (payload) => {
     checkout,
     onboardingCredentials: {
       authorisationCode: code.code,
+      authorisationCodeId: code.id,
       membershipNumber: player.membershipNumber,
       playerName: trialApplication.playerName,
       playerSurname: trialApplication.playerSurname,
@@ -277,7 +278,15 @@ const reviewTrialApplication = async (trialApplicationId, status) => {
 const listTrialApplications = () =>
   prisma.trialApplication.findMany({
     orderBy: { createdAt: "desc" },
-    include: { authorisationCode: true },
+    include: {
+      authorisationCode: {
+        include: {
+          emailLogs: {
+            orderBy: { createdAt: "desc" },
+          },
+        },
+      },
+    },
   });
 
 const listPlayers = ({ search, programmeId, ageGroup }) => {
@@ -373,7 +382,9 @@ const simulateCodeEmail = async (codeId) => {
       code.type === "RENEWAL"
         ? "Cape Town Spurs renewal code"
         : "Cape Town Spurs authorisation code",
-    body: `Your code is ${code.code}.`,
+    body: `Your code is ${code.code}.${
+      code.membershipNumber ? ` Membership number: ${code.membershipNumber}.` : ""
+    }`,
     codeId: code.id,
   });
 };

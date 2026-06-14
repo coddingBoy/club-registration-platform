@@ -90,7 +90,9 @@ function TrialRegistration({
         status: mapTrialStatus(result.trialApplication.status),
         paymentConfirmed: true,
         authorisationCode: result.onboardingCredentials.authorisationCode,
+        authorisationCodeId: result.onboardingCredentials.authorisationCodeId,
         membershipNumber: result.onboardingCredentials.membershipNumber,
+        emailStatus: "PENDING",
       };
 
       onApplicationSaved(application);

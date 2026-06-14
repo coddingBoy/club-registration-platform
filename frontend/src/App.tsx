@@ -22,6 +22,7 @@ import type {
 import {
   getSimpleRegistrations,
   getTrialApplications,
+  resendCodeEmail,
 } from "./utils/api";
 import { loadFromStorage, saveToStorage } from "./utils/storage";
 import { formatCurrency } from "./utils/validation";
@@ -121,6 +122,27 @@ function App() {
     setOnboardingCompletions((current) => [record, ...current]);
   };
 
+  const resendTrialEmail = async (codeId: string) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const emailLog = await resendCodeEmail(codeId, adminSession.token);
+
+    setTrialApplications((current) =>
+      current.map((application) =>
+        application.authorisationCodeId === codeId
+          ? {
+              ...application,
+              emailStatus: emailLog.status,
+              emailError: emailLog.error ?? undefined,
+              emailSentAt: emailLog.createdAt,
+            }
+          : application,
+      ),
+    );
+  };
+
   const simpleFormConfig = isSimpleRegistrationTab(activeTab)
     ? getSimpleRegistrationForm(activeTab)
     : undefined;
@@ -162,6 +184,7 @@ function App() {
                 trialApplications={trialApplications}
                 simpleRegistrations={simpleRegistrations}
                 onboardingCompletions={onboardingCompletions}
+                onResendTrialEmail={resendTrialEmail}
               />
             )}
           </>
@@ -221,6 +244,10 @@ function App() {
 }
 
 function mapDatabaseTrial(trial: Awaited<ReturnType<typeof getTrialApplications>>[number]): TrialApplication {
+  const guardianEmailLog = trial.authorisationCode?.emailLogs?.find(
+    (log) => log.to === trial.guardianEmail,
+  );
+
   return {
     id: trial.id,
     playerName: trial.playerName,
@@ -233,7 +260,11 @@ function mapDatabaseTrial(trial: Awaited<ReturnType<typeof getTrialApplications>
     status: mapTrialStatus(trial.status),
     paymentConfirmed: trial.status !== "PAYMENT_PENDING",
     authorisationCode: trial.authorisationCode?.code,
+    authorisationCodeId: trial.authorisationCode?.id,
     membershipNumber: trial.authorisationCode?.membershipNumber ?? undefined,
+    emailStatus: guardianEmailLog?.status,
+    emailError: guardianEmailLog?.error ?? undefined,
+    emailSentAt: guardianEmailLog?.createdAt,
   };
 }
 

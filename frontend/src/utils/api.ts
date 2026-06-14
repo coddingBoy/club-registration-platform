@@ -79,6 +79,7 @@ export async function postTrialApplication(payload: {
     };
     onboardingCredentials?: {
       authorisationCode: string;
+      authorisationCodeId?: string;
       membershipNumber: string;
       playerName?: string;
       playerSurname?: string;
@@ -106,9 +107,44 @@ export async function getTrialApplications() {
       guardianPhone: string;
       status: "PAYMENT_PENDING" | "PAID" | "SUCCESSFUL" | "UNSUCCESSFUL";
       createdAt: string;
-      authorisationCode?: { code: string; membershipNumber?: string | null } | null;
+      authorisationCode?: {
+        id: string;
+        code: string;
+        membershipNumber?: string | null;
+        emailLogs?: Array<{
+          id: string;
+          to: string;
+          subject: string;
+          status: string;
+          error?: string | null;
+          createdAt: string;
+        }>;
+      } | null;
     }>
   >;
+}
+
+export async function resendCodeEmail(codeId: string, token: string) {
+  const response = await fetch(`${apiBaseUrl}/api/academy/admin/codes/${codeId}/send-email`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Email resend failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    to: string;
+    subject: string;
+    status: string;
+    error?: string | null;
+    createdAt: string;
+  }>;
 }
 
 export async function postSimpleRegistration(payload: {

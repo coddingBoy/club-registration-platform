@@ -485,6 +485,13 @@ input[type="file"] {
   color: #ffffff;
 }
 
+.secondary-button:disabled {
+  cursor: not-allowed;
+  border-color: #c7ccd5;
+  background: #eef0f4;
+  color: #8c929e;
+}
+
 .action-row,
 .checkout-actions {
   display: flex;
@@ -670,6 +677,118 @@ input[type="file"] {
 
 .clean-toolbar {
   justify-items: start;
+}
+
+.admin-action-message {
+  margin: 0;
+  border-left: 3px solid #c1121f;
+  background: #fff4f5;
+  padding: 0.75rem 0.9rem;
+  color: #11151c;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.admin-panel {
+  gap: 1.4rem;
+}
+
+.admin-table-section {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.admin-table-section h2 {
+  margin: 0;
+  color: #11151c;
+  font-size: 1rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.admin-table-scroll {
+  overflow-x: auto;
+  border: 1px solid #d9dce2;
+  background: #ffffff;
+}
+
+.admin-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.72rem 0.8rem;
+  border-bottom: 1px solid #e5e7ec;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-table th {
+  background: #11151c;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.admin-table tbody tr:nth-child(even) {
+  background: #f8f9fb;
+}
+
+.admin-table tbody tr:hover {
+  background: #fff4f5;
+}
+
+.admin-table strong {
+  color: #11151c;
+}
+
+.table-status {
+  display: inline-block;
+  border-left: 3px solid #c1121f;
+  background: #fff4f5;
+  color: #9f0f19;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.table-status-success {
+  border-left-color: #18864b;
+  background: #ecfdf3;
+  color: #126c3d;
+}
+
+.table-status-error {
+  border-left-color: #c1121f;
+  background: #fff4f5;
+  color: #9f0f19;
+}
+
+.table-error {
+  display: block;
+  margin-top: 0.35rem;
+  color: #9f0f19;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.table-action-button {
+  min-height: 34px;
+  padding: 0 0.65rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.admin-empty-message {
+  margin: 0;
+  padding: 1rem;
+  color: #545b67;
 }
 
 .admin-session-bar {
