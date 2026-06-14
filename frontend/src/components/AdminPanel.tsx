@@ -11,6 +11,7 @@ type AdminPanelProps = {
   simpleRegistrations: SimpleRegistrationRecord[];
   onboardingCompletions: OnboardingCompletion[];
   onResendTrialEmail: (codeId: string) => Promise<void>;
+  onResendSimpleRegistrationEmail: (registrationId: string) => Promise<void>;
 };
 
 const simpleRegistrationLabels: Record<SimpleRegistrationType, string> = {
@@ -27,8 +28,10 @@ function AdminPanel({
   simpleRegistrations,
   onboardingCompletions,
   onResendTrialEmail,
+  onResendSimpleRegistrationEmail,
 }: AdminPanelProps) {
   const [resendingCodeId, setResendingCodeId] = useState("");
+  const [resendingRegistrationId, setResendingRegistrationId] = useState("");
   const [resendMessage, setResendMessage] = useState("");
 
   const resendTrialEmail = async (application: TrialApplication) => {
@@ -48,6 +51,26 @@ function AdminPanel({
       );
     } finally {
       setResendingCodeId("");
+    }
+  };
+
+  const resendSimpleRegistrationEmail = async (
+    registration: SimpleRegistrationRecord,
+  ) => {
+    setResendingRegistrationId(registration.id);
+    setResendMessage("");
+
+    try {
+      await onResendSimpleRegistrationEmail(registration.id);
+      setResendMessage(
+        `Resent email to ${registration.email}. Check the Email Status column for delivery result.`,
+      );
+    } catch (error) {
+      setResendMessage(
+        error instanceof Error ? error.message : "Email resend failed. Please try again.",
+      );
+    } finally {
+      setResendingRegistrationId("");
     }
   };
 
@@ -257,6 +280,10 @@ function AdminPanel({
                       <th>Email</th>
                       <th>Phone</th>
                       <th>Reference</th>
+                      <th>Membership Code</th>
+                      <th>Payment</th>
+                      <th>Email Status</th>
+                      <th>Resend</th>
                       <th>Parent / Guardian</th>
                       <th>Submitted</th>
                     </tr>
@@ -270,6 +297,53 @@ function AdminPanel({
                         <td>{registration.email}</td>
                         <td>{registration.phone}</td>
                         <td>{registration.referenceNumber}</td>
+                        <td>{registration.membershipCode || "Not required"}</td>
+                        <td>
+                          {registration.paymentStatus ? (
+                            <span
+                              className={
+                                registration.paymentStatus === "PAID"
+                                  ? "table-status table-status-success"
+                                  : "table-status"
+                              }
+                            >
+                              {registration.paymentStatus === "PAID" ? "Paid" : "Pending"}
+                            </span>
+                          ) : (
+                            "Not required"
+                          )}
+                        </td>
+                        <td>
+                          {registration.membershipCode ? (
+                            <>
+                              <span className={getEmailStatusClass(registration.emailStatus)}>
+                                {getEmailStatusLabel(registration.emailStatus)}
+                              </span>
+                              {registration.emailError && (
+                                <small className="table-error">
+                                  {registration.emailError}
+                                </small>
+                              )}
+                            </>
+                          ) : (
+                            "Not required"
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            className="secondary-button table-action-button"
+                            type="button"
+                            disabled={
+                              !registration.membershipCode ||
+                              resendingRegistrationId === registration.id
+                            }
+                            onClick={() => void resendSimpleRegistrationEmail(registration)}
+                          >
+                            {resendingRegistrationId === registration.id
+                              ? "Sending..."
+                              : "Resend"}
+                          </button>
+                        </td>
                         <td>{registration.parentGuardian || "Not required"}</td>
                         <td>{formatDateTime(registration.submittedAt)}</td>
                       </tr>

@@ -23,6 +23,7 @@ import {
   getSimpleRegistrations,
   getTrialApplications,
   resendCodeEmail,
+  resendSimpleRegistrationEmail,
 } from "./utils/api";
 import { loadFromStorage, saveToStorage } from "./utils/storage";
 import { formatCurrency } from "./utils/validation";
@@ -31,8 +32,8 @@ const publicTabs: Array<{ id: AppTab; label: string; disabled?: boolean }> = [
   { id: "player", label: "Player Registration" },
   { id: "onboarding", label: "Urban Warrior Onboarding" },
   { id: "general-member", label: "General Member", disabled: true },
-  { id: "holiday-camp", label: "Holiday Camp", disabled: true },
-  { id: "meet-greet", label: "Meet & Greet", disabled: true },
+  { id: "holiday-camp", label: "Holiday Camp" },
+  { id: "meet-greet", label: "Meet & Greet" },
   { id: "urban-lounge", label: "Urban Lounge Event", disabled: true },
   { id: "club-event", label: "Club Event", disabled: true },
   { id: "match-tickets", label: "Match Tickets", disabled: true },
@@ -115,7 +116,17 @@ function App() {
   };
 
   const addSimpleRegistration = (record: SimpleRegistrationRecord) => {
-    setSimpleRegistrations((current) => [record, ...current]);
+    setSimpleRegistrations((current) => {
+      const existing = current.some((registration) => registration.id === record.id);
+
+      if (existing) {
+        return current.map((registration) =>
+          registration.id === record.id ? record : registration,
+        );
+      }
+
+      return [record, ...current];
+    });
   };
 
   const addOnboardingCompletion = (record: OnboardingCompletion) => {
@@ -139,6 +150,30 @@ function App() {
               emailSentAt: emailLog.createdAt,
             }
           : application,
+      ),
+    );
+  };
+
+  const resendSimpleRegistrationConfirmation = async (registrationId: string) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const emailLog = await resendSimpleRegistrationEmail(
+      registrationId,
+      adminSession.token,
+    );
+
+    setSimpleRegistrations((current) =>
+      current.map((registration) =>
+        registration.id === registrationId
+          ? {
+              ...registration,
+              emailStatus: emailLog.status,
+              emailError: emailLog.error ?? undefined,
+              emailSentAt: emailLog.createdAt,
+            }
+          : registration,
       ),
     );
   };
@@ -185,6 +220,7 @@ function App() {
                 simpleRegistrations={simpleRegistrations}
                 onboardingCompletions={onboardingCompletions}
                 onResendTrialEmail={resendTrialEmail}
+                onResendSimpleRegistrationEmail={resendSimpleRegistrationConfirmation}
               />
             )}
           </>
@@ -282,6 +318,14 @@ function mapDatabaseSimpleRegistration(
     id: registration.id,
     type: registration.type as SimpleRegistrationType,
     referenceNumber: registration.referenceNumber,
+    membershipCode: registration.specificFields?.membershipCode,
+    paymentStatus: registration.specificFields?.paymentStatus as
+      | SimpleRegistrationRecord["paymentStatus"]
+      | undefined,
+    paymentCompletedAt: registration.specificFields?.paymentCompletedAt,
+    emailStatus: registration.emailStatus,
+    emailError: registration.emailError ?? undefined,
+    emailSentAt: registration.emailSentAt,
     fullName: registration.fullName,
     email: registration.email,
     phone: registration.phone,

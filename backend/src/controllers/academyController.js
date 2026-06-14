@@ -4,6 +4,7 @@ const {
   createDocumentUpload,
   createRenewalCode,
   createSimpleRegistration,
+  completeSimpleRegistrationPayment,
   createTrialApplication,
   exportRegistrationsCsv,
   getDocument,
@@ -15,6 +16,7 @@ const {
   listTrialApplications,
   programmes,
   reviewTrialApplication,
+  resendSimpleRegistrationEmail,
   simulateCodeEmail,
   validateOneTimeCode,
 } = require("../services/academyService");
@@ -39,6 +41,15 @@ const postSimpleRegistration = async (req, res, next) => {
   try {
     const result = await createSimpleRegistration(req.body);
     res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const patchSimpleRegistrationPayment = async (req, res, next) => {
+  try {
+    const result = await completeSimpleRegistrationPayment(req.params.id);
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -150,6 +161,22 @@ const postAdminCodeEmail = async (req, res, next) => {
       actor: req.user,
       action: "CODE_EMAIL_SENT",
       entityType: "OneTimeCode",
+      entityId: req.params.id,
+      metadata: { emailLogId: emailLog.id },
+    });
+    res.status(201).json(emailLog);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const postAdminSimpleRegistrationEmail = async (req, res, next) => {
+  try {
+    const emailLog = await resendSimpleRegistrationEmail(req.params.id);
+    await logAuditEvent({
+      actor: req.user,
+      action: "SIMPLE_REGISTRATION_EMAIL_SENT",
+      entityType: "SimpleRegistration",
       entityId: req.params.id,
       metadata: { emailLogId: emailLog.id },
     });
@@ -295,6 +322,7 @@ module.exports = {
   postTrialApplication,
   getTrialApplications,
   postSimpleRegistration,
+  patchSimpleRegistrationPayment,
   getSimpleRegistrations,
   getAdminTrialApplications,
   patchAdminTrialReview,
@@ -303,6 +331,7 @@ module.exports = {
   postAdminBulkRenewalCodes,
   getAdminCodes,
   postAdminCodeEmail,
+  postAdminSimpleRegistrationEmail,
   postValidateCode,
   postOnboarding,
   postDocumentUpload,

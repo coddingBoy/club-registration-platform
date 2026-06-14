@@ -3,7 +3,7 @@ import type {
   SimpleRegistrationConfig,
   SimpleRegistrationRecord,
 } from "../types";
-import { postSimpleRegistration } from "../utils/api";
+import { postSimpleRegistration, simulateSimpleRegistrationPayment } from "../utils/api";
 import { isEmail, isRequired, isTenDigitPhone } from "../utils/validation";
 import FormField from "./FormField";
 
@@ -28,12 +28,19 @@ const initialBaseValues: BaseValues = {
   parentGuardian: "",
 };
 
+const membershipPaymentTypes = new Set(["holiday-camp", "meet-greet"]);
+
 function PlaceholderForm({ config, onSubmitRegistration }: PlaceholderFormProps) {
   const [baseValues, setBaseValues] = useState<BaseValues>(initialBaseValues);
   const [specificValues, setSpecificValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirmation, setConfirmation] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+  const [pendingRegistration, setPendingRegistration] =
+    useState<SimpleRegistrationRecord | null>(null);
+
+  const usesMembershipPaymentFlow = membershipPaymentTypes.has(config.type);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -91,6 +98,12 @@ function PlaceholderForm({ config, onSubmitRegistration }: PlaceholderFormProps)
         id: result.id,
         type: config.type,
         referenceNumber: result.referenceNumber,
+        membershipCode: result.membershipCode,
+        paymentStatus: result.paymentStatus,
+        paymentCompletedAt: result.paymentCompletedAt,
+        emailStatus: result.emailStatus,
+        emailError: result.emailError ?? undefined,
+        emailSentAt: result.emailSentAt,
         fullName: baseValues.fullName,
         email: baseValues.email,
         phone: baseValues.phone,
@@ -104,15 +117,56 @@ function PlaceholderForm({ config, onSubmitRegistration }: PlaceholderFormProps)
       };
 
       onSubmitRegistration(record);
-      setConfirmation(
-        `Reference ${result.referenceNumber} returned by backend. Confirmation email logged for ${baseValues.email}.`,
-      );
-      setBaseValues(initialBaseValues);
-      setSpecificValues({});
+      if (usesMembershipPaymentFlow) {
+        setPendingRegistration(record);
+        setConfirmation(
+          `Membership code ${result.membershipCode} generated. Complete the simulated payment to finish.`,
+        );
+      } else {
+        setConfirmation(
+          `Reference ${result.referenceNumber} returned by backend. Confirmation email logged for ${baseValues.email}.`,
+        );
+        setBaseValues(initialBaseValues);
+        setSpecificValues({});
+      }
     } catch (error) {
       setConfirmation(error instanceof Error ? error.message : "Registration failed.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const completePayment = async () => {
+    if (!pendingRegistration) return;
+
+    setIsPaying(true);
+    setConfirmation("");
+
+    try {
+      const result = await simulateSimpleRegistrationPayment(pendingRegistration.id);
+      const updatedRecord: SimpleRegistrationRecord = {
+        ...pendingRegistration,
+        membershipCode: result.membershipCode ?? pendingRegistration.membershipCode,
+        paymentStatus: result.paymentStatus,
+        paymentCompletedAt: result.paymentCompletedAt,
+        specificFields: {
+          ...pendingRegistration.specificFields,
+          ...(result.specificFields ?? {}),
+        },
+        emailSimulatedAt: result.emailSimulatedAt,
+      };
+
+      onSubmitRegistration(updatedRecord);
+      setPendingRegistration(null);
+      setBaseValues(initialBaseValues);
+      setSpecificValues({});
+      setConfirmation(
+        `Payment simulated. ${config.title} complete. Reference ${updatedRecord.referenceNumber}, membership code ${updatedRecord.membershipCode}.`,
+      );
+    } catch (error) {
+      setConfirmation(error instanceof Error ? error.message : "Payment simulation failed.");
+    } finally {
+      setIsPaying(false);
     }
   };
 
@@ -258,8 +312,36 @@ function PlaceholderForm({ config, onSubmitRegistration }: PlaceholderFormProps)
           </div>
         </fieldset>
 
-        <button className="submit-button" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Sending..." : "Submit Registration"}
+        {pendingRegistration && (
+          <div className="trial-payment">
+            <div>
+              <p className="capacity-copy">Membership code generated</p>
+              <strong>{pendingRegistration.membershipCode}</strong>
+              <p className="capacity-copy">
+                Reference {pendingRegistration.referenceNumber}. Payment pending.
+              </p>
+            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={completePayment}
+              disabled={isPaying}
+            >
+              {isPaying ? "Processing..." : "Simulate Payment & Finish"}
+            </button>
+          </div>
+        )}
+
+        <button
+          className="submit-button"
+          type="submit"
+          disabled={isSubmitting || Boolean(pendingRegistration)}
+        >
+          {isSubmitting
+            ? "Sending..."
+            : usesMembershipPaymentFlow
+              ? "Generate Membership Code"
+              : "Submit Registration"}
         </button>
       </form>
     </section>

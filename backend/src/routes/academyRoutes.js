@@ -14,11 +14,13 @@ const {
   getTrialApplications,
   patchAdminTrialReview,
   postAdminCodeEmail,
+  postAdminSimpleRegistrationEmail,
   postAdminBulkRenewalCodes,
   postAdminRenewalCode,
   postDocumentUpload,
   postOnboarding,
   postPayFastNotification,
+  patchSimpleRegistrationPayment,
   postSimpleRegistration,
   postTrialApplication,
   postValidateCode,
@@ -36,6 +38,7 @@ router.get("/trials", getTrialApplications);
 router.post("/trials", postTrialApplication);
 router.get("/simple-registrations", getSimpleRegistrations);
 router.post("/simple-registrations", postSimpleRegistration);
+router.patch("/simple-registrations/:id/simulate-payment", patchSimpleRegistrationPayment);
 router.post("/codes/validate", postValidateCode);
 router.post("/onboarding", postOnboarding);
 router.post(
@@ -53,6 +56,11 @@ router.post("/admin/renewal-codes", adminWrite, postAdminRenewalCode);
 router.post("/admin/renewal-codes/bulk", adminWrite, postAdminBulkRenewalCodes);
 router.get("/admin/codes", adminRead, getAdminCodes);
 router.post("/admin/codes/:id/send-email", adminWrite, postAdminCodeEmail);
+router.post(
+  "/admin/simple-registrations/:id/send-email",
+  adminWrite,
+  postAdminSimpleRegistrationEmail,
+);
 router.get("/admin/onboarding", adminRead, getAdminOnboardingRecords);
 router.get("/admin/documents", adminRead, getAdminDocuments);
 router.get("/admin/documents/:id/file", adminRead, getAdminDocumentFile);

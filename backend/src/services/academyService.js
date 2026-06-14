@@ -8,6 +8,7 @@ const { getProgrammeById, programmes } = require("./programmeCatalog");
 const { uploadDocumentFile } = require("./storageService");
 
 const trialFeeAmount = 500;
+const membershipFlowTypes = new Set(["holiday-camp", "meet-greet"]);
 const documentTypes = new Set([
   "BIRTH_CERTIFICATE",
   "SIGNED_CODE_OF_CONDUCT",
@@ -62,6 +63,31 @@ const createEmailLog = async (
     },
   });
 };
+
+const buildSimpleRegistrationEmail = (registration) => {
+  const specificFields = registration.specificFields || {};
+
+  return {
+    subject: "Cape Town Spurs registration received",
+    body: `We received your ${registration.type} registration. Reference number: ${registration.referenceNumber}.${
+      specificFields.membershipCode
+        ? ` Membership code: ${specificFields.membershipCode}.`
+        : ""
+    }`,
+  };
+};
+
+const findSimpleRegistrationEmailLog = (registration) =>
+  prisma.emailLog.findFirst({
+    where: {
+      to: registration.email,
+      subject: "Cape Town Spurs registration received",
+      body: {
+        contains: registration.referenceNumber,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
 const createTrialApplication = async (payload) => {
   const requiredFields = [
@@ -177,6 +203,19 @@ const createSimpleRegistration = async (payload) => {
     .slice(0, 8)
     .replace(/^-|-$/g, "");
   const referenceNumber = generateCode(referencePrefix || "REG");
+  const needsMembershipFlow = membershipFlowTypes.has(payload.type);
+  const membershipCode = needsMembershipFlow
+    ? generateCode(payload.type === "holiday-camp" ? "CAMP-MEM" : "MEET-MEM")
+    : undefined;
+  const specificFields = {
+    ...(payload.specificFields || {}),
+    ...(needsMembershipFlow
+      ? {
+          membershipCode,
+          paymentStatus: "PENDING",
+        }
+      : {}),
+  };
   const registration = await prisma.simpleRegistration.create({
     data: {
       type: payload.type,
@@ -186,14 +225,17 @@ const createSimpleRegistration = async (payload) => {
       phone: payload.phone,
       dateOfBirth: payload.dateOfBirth ? new Date(payload.dateOfBirth) : null,
       parentGuardian: payload.parentGuardian || null,
-      specificFields: payload.specificFields || {},
+      specificFields,
     },
   });
 
   const emailLog = await createEmailLog(prisma, {
     to: payload.email,
-    subject: "Cape Town Spurs registration received",
-    body: `We received your ${payload.type} registration. Reference number: ${referenceNumber}.`,
+    ...buildSimpleRegistrationEmail({
+      type: payload.type,
+      referenceNumber,
+      specificFields,
+    }),
   });
 
   await createEmailLog(prisma, {
@@ -210,16 +252,104 @@ const createSimpleRegistration = async (payload) => {
   return {
     id: updatedRegistration.id,
     referenceNumber,
+    membershipCode,
+    paymentStatus: needsMembershipFlow ? "PENDING" : undefined,
+    emailStatus: emailLog.status,
+    emailError: emailLog.error,
+    emailSentAt: emailLog.createdAt.toISOString(),
     submittedAt: updatedRegistration.createdAt.toISOString(),
     emailSimulatedAt: emailLog.createdAt.toISOString(),
     payload,
   };
 };
 
+const completeSimpleRegistrationPayment = async (registrationId) => {
+  const registration = await prisma.simpleRegistration.findUnique({
+    where: { id: registrationId },
+  });
+
+  if (!registration) {
+    throw new AppError("Registration not found", 404);
+  }
+
+  if (!membershipFlowTypes.has(registration.type)) {
+    throw new AppError("This registration type does not use the membership payment flow", 400);
+  }
+
+  const completedAt = new Date();
+  const specificFields = {
+    ...(registration.specificFields || {}),
+    paymentStatus: "PAID",
+    paymentCompletedAt: completedAt.toISOString(),
+  };
+
+  const updatedRegistration = await prisma.simpleRegistration.update({
+    where: { id: registration.id },
+    data: { specificFields },
+  });
+
+  await createEmailLog(prisma, {
+    to: registration.email,
+    subject: "Cape Town Spurs payment completed",
+    body: `Payment has been simulated for ${registration.type}. Reference number: ${registration.referenceNumber}. Membership code: ${specificFields.membershipCode}.`,
+  });
+
+  return {
+    id: updatedRegistration.id,
+    type: updatedRegistration.type,
+    referenceNumber: updatedRegistration.referenceNumber,
+    fullName: updatedRegistration.fullName,
+    email: updatedRegistration.email,
+    phone: updatedRegistration.phone,
+    dateOfBirth: updatedRegistration.dateOfBirth,
+    parentGuardian: updatedRegistration.parentGuardian,
+    specificFields: updatedRegistration.specificFields || {},
+    submittedAt: updatedRegistration.createdAt.toISOString(),
+    emailSimulatedAt:
+      updatedRegistration.emailSimulatedAt?.toISOString() ||
+      updatedRegistration.createdAt.toISOString(),
+    membershipCode: specificFields.membershipCode,
+    paymentStatus: specificFields.paymentStatus,
+    paymentCompletedAt: specificFields.paymentCompletedAt,
+  };
+};
+
 const listSimpleRegistrations = () =>
   prisma.simpleRegistration.findMany({
     orderBy: { createdAt: "desc" },
+  }).then(async (registrations) =>
+    Promise.all(
+      registrations.map(async (registration) => {
+        const emailLog = await findSimpleRegistrationEmailLog(registration);
+
+        return {
+          ...registration,
+          emailStatus: emailLog?.status,
+          emailError: emailLog?.error,
+          emailSentAt: emailLog?.createdAt,
+        };
+      }),
+    ),
+  );
+
+const resendSimpleRegistrationEmail = async (registrationId) => {
+  const registration = await prisma.simpleRegistration.findUnique({
+    where: { id: registrationId },
   });
+
+  if (!registration) {
+    throw new AppError("Registration not found", 404);
+  }
+
+  if (!membershipFlowTypes.has(registration.type)) {
+    throw new AppError("This registration type does not use membership email resend", 400);
+  }
+
+  return createEmailLog(prisma, {
+    to: registration.email,
+    ...buildSimpleRegistrationEmail(registration),
+  });
+};
 
 const reviewTrialApplication = async (trialApplicationId, status) => {
   if (!["SUCCESSFUL", "UNSUCCESSFUL"].includes(status)) {
@@ -635,6 +765,8 @@ module.exports = {
   programmes,
   createTrialApplication,
   createSimpleRegistration,
+  completeSimpleRegistrationPayment,
+  resendSimpleRegistrationEmail,
   reviewTrialApplication,
   listTrialApplications,
   listSimpleRegistrations,

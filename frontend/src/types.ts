@@ -171,6 +171,12 @@ export type SimpleRegistrationRecord = {
   id: string;
   type: SimpleRegistrationType;
   referenceNumber: string;
+  membershipCode?: string;
+  paymentStatus?: "PENDING" | "PAID";
+  paymentCompletedAt?: string;
+  emailStatus?: string;
+  emailError?: string;
+  emailSentAt?: string;
   fullName: string;
   email: string;
   phone: string;

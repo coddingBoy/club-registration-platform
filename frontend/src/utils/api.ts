@@ -172,8 +172,65 @@ export async function postSimpleRegistration(payload: {
   return response.json() as Promise<{
     id: string;
     referenceNumber: string;
+    membershipCode?: string;
+    paymentStatus?: "PENDING" | "PAID";
+    paymentCompletedAt?: string;
+    emailStatus?: string;
+    emailError?: string | null;
+    emailSentAt?: string;
     submittedAt: string;
     emailSimulatedAt: string;
+  }>;
+}
+
+export async function simulateSimpleRegistrationPayment(registrationId: string) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/simple-registrations/${registrationId}/simulate-payment`,
+    {
+      method: "PATCH",
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Payment simulation failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    referenceNumber: string;
+    membershipCode?: string;
+    paymentStatus?: "PENDING" | "PAID";
+    paymentCompletedAt?: string;
+    submittedAt: string;
+    emailSimulatedAt: string;
+    specificFields?: Record<string, string>;
+  }>;
+}
+
+export async function resendSimpleRegistrationEmail(registrationId: string, token: string) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/simple-registrations/${registrationId}/send-email`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Email resend failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    to: string;
+    subject: string;
+    status: string;
+    error?: string | null;
+    createdAt: string;
   }>;
 }
 
@@ -195,6 +252,12 @@ export async function getSimpleRegistrations() {
       dateOfBirth?: string | null;
       parentGuardian?: string | null;
       specificFields?: Record<string, string> | null;
+      membershipCode?: string;
+      paymentStatus?: "PENDING" | "PAID";
+      paymentCompletedAt?: string;
+      emailStatus?: string;
+      emailError?: string | null;
+      emailSentAt?: string;
       emailSimulatedAt?: string | null;
       createdAt: string;
     }>
