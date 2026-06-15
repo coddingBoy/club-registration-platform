@@ -325,6 +325,22 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(193, 18, 31, 0.13);
 }
 
+input:disabled,
+select:disabled,
+textarea:disabled {
+  border-color: #b7c6d8;
+  background:
+    linear-gradient(135deg, rgba(49, 86, 124, 0.11), rgba(255, 255, 255, 0.94));
+  color: #26384f;
+  cursor: not-allowed;
+  font-weight: 800;
+}
+
+input:disabled::placeholder,
+textarea:disabled::placeholder {
+  color: #667b92;
+}
+
 input[type="file"] {
   padding: 0.6rem;
 }
@@ -336,19 +352,27 @@ input[type="file"] {
   font-size: 0.82rem;
 }
 
+.highlighted-field-hint {
+  border-left: 4px solid #f0c419;
+  background: #fff8dc;
+  color: #2a2410;
+  padding: 0.62rem 0.75rem;
+  font-weight: 900;
+}
+
 .age-group-reminder {
   display: grid;
   gap: 0.2rem;
   margin-top: 0.65rem;
-  border-left: 4px solid #c1121f;
-  background: #fff3f4;
-  color: #1f2329;
+  border-left: 4px solid #f0c419;
+  background: #fff8dc;
+  color: #2a2410;
   padding: 0.7rem 0.8rem;
   font-size: 0.84rem;
 }
 
 .age-group-reminder strong {
-  color: #8f0d17;
+  color: #735100;
   font-size: 0.78rem;
   text-transform: uppercase;
 }
@@ -757,6 +781,53 @@ input[type="file"] {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.email-format-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem;
+}
+
+.email-rich-editor {
+  min-height: 230px;
+  max-height: 44vh;
+  overflow: auto;
+  border: 1px solid #bfc4cc;
+  background: #ffffff;
+  color: #15191f;
+  padding: 0.85rem;
+  line-height: 1.55;
+}
+
+.email-rich-editor:focus {
+  border-color: #c1121f;
+  box-shadow: 0 0 0 3px rgba(193, 18, 31, 0.13);
+  outline: 0;
+}
+
+.email-rich-editor[contenteditable="false"] {
+  background: #eef0f4;
+  color: #5f6671;
+}
+
+.email-rich-editor p {
+  margin: 0 0 0.8rem;
+}
+
+.email-rich-editor p:last-child {
+  margin-bottom: 0;
+}
+
+.email-rich-editor ul {
+  margin: 0 0 0.8rem;
+  padding-left: 1.25rem;
+}
+
+.email-rich-editor a {
+  color: #9f0f19;
+  font-weight: 800;
 }
 
 .email-modal-header h2 {

@@ -117,7 +117,7 @@ function AdminPanel({
     body: string;
     onSend: (body: string) => Promise<void>;
   }) => {
-    setEmailComposer(config);
+    setEmailComposer({ ...config, body: plainTextToHtml(config.body) });
   };
 
   const sendComposedEmail = async () => {
@@ -130,6 +130,29 @@ function AdminPanel({
       setEmailComposer(null);
     } finally {
       setIsSendingComposer(false);
+    }
+  };
+
+  const applyEmailFormat = (command: "bold" | "insertUnorderedList") => {
+    document.execCommand(command);
+    const editor = document.getElementById("emailComposerBody");
+    if (editor) {
+      setEmailComposer((current) =>
+        current ? { ...current, body: editor.innerHTML } : current,
+      );
+    }
+  };
+
+  const addEmailLink = () => {
+    const url = window.prompt("Enter link URL");
+    if (!url) return;
+
+    document.execCommand("createLink", false, url);
+    const editor = document.getElementById("emailComposerBody");
+    if (editor) {
+      setEmailComposer((current) =>
+        current ? { ...current, body: editor.innerHTML } : current,
+      );
     }
   };
 
@@ -1096,15 +1119,58 @@ function AdminPanel({
                 Close
               </button>
             </div>
-            <label className="field-label" htmlFor="emailComposerBody">
+            <label className="field-label" id="emailComposerBodyLabel">
               Email Message
             </label>
-            <textarea
+            <div className="email-format-toolbar" aria-label="Email formatting tools">
+              <button
+                className="secondary-button table-action-button"
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  applyEmailFormat("bold");
+                }}
+                disabled={isSendingComposer}
+              >
+                Bold
+              </button>
+              <button
+                className="secondary-button table-action-button"
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  applyEmailFormat("insertUnorderedList");
+                }}
+                disabled={isSendingComposer}
+              >
+                List
+              </button>
+              <button
+                className="secondary-button table-action-button"
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  addEmailLink();
+                }}
+                disabled={isSendingComposer}
+              >
+                Link
+              </button>
+            </div>
+            <div
               id="emailComposerBody"
-              rows={10}
-              value={emailComposer.body}
-              onChange={(event) =>
-                setEmailComposer({ ...emailComposer, body: event.target.value })
+              className="email-rich-editor"
+              role="textbox"
+              aria-labelledby="emailComposerBodyLabel"
+              aria-multiline="true"
+              contentEditable={!isSendingComposer}
+              suppressContentEditableWarning
+              dangerouslySetInnerHTML={{ __html: emailComposer.body }}
+              onInput={(event) =>
+                setEmailComposer({
+                  ...emailComposer,
+                  body: event.currentTarget.innerHTML,
+                })
               }
             />
             <div className="email-modal-actions">
@@ -1120,7 +1186,9 @@ function AdminPanel({
                 className="submit-button inline-submit"
                 type="button"
                 onClick={() => void sendComposedEmail()}
-                disabled={isSendingComposer || !emailComposer.body.trim()}
+                disabled={
+                  isSendingComposer || !htmlToPlainText(emailComposer.body).trim()
+                }
               >
                 {isSendingComposer ? "Sending..." : "Send Email"}
               </button>
@@ -1149,6 +1217,38 @@ function AdminTableSection({
 
 function EmptyTableMessage({ message }: { message: string }) {
   return <p className="admin-empty-message">{message}</p>;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function plainTextToHtml(value: string) {
+  if (/<\/?[a-z][\s\S]*>/i.test(value)) return value;
+
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const lines = paragraph
+        .split("\n")
+        .map((line) => escapeHtml(line))
+        .join("<br>");
+
+      return `<p>${lines || "<br>"}</p>`;
+    })
+    .join("");
+}
+
+function htmlToPlainText(value: string) {
+  const element = document.createElement("div");
+  element.innerHTML = value;
+
+  return element.textContent || "";
 }
 
 function EmailStatusCell({

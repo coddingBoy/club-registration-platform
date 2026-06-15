@@ -64,6 +64,7 @@ function TrialRegistration({
   const [message, setMessage] = useState("");
   const seasonYear = getTrialSeasonYear();
   const isClubInviteTrial = mode === "club-invite-trial";
+  const dateBounds = getTrialDateBounds(seasonYear);
 
   const ageGroup = useMemo(
     () => getTrialAgeGroup(values.dateOfBirth, seasonYear),
@@ -285,10 +286,12 @@ function TrialRegistration({
               <input
                 id="trialDob"
                 type="date"
+                min={dateBounds.min}
+                max={dateBounds.max}
                 value={values.dateOfBirth}
                 onChange={(event) => updateDateOfBirth(event.target.value)}
               />
-              <span className="field-hint">
+              <span className="field-hint highlighted-field-hint">
                 {ageGroup.label
                   ? `${seasonYear} age group: ${ageGroup.label}`
                   : `Select a date of birth to calculate the ${seasonYear} age group.`}
@@ -499,7 +502,9 @@ function validateTrialForm(
   if (!isRequired(values.dateOfBirth)) {
     nextErrors.dateOfBirth = "Date of birth is required.";
   } else if (!values.ageGroup) {
-    nextErrors.ageGroup = "Date of birth does not match a supported 2026 group.";
+    nextErrors.ageGroup = "Date of birth does not match a supported trial age group.";
+  } else if (values.ageGroup === "Outside Trial Age Groups") {
+    nextErrors.ageGroup = "Date of birth is outside the supported trial age groups.";
   }
   if (!isRequired(values.gender)) nextErrors.gender = "Gender is required.";
   if (!isRequired(values.guardianName)) {
@@ -573,6 +578,20 @@ function getTrialAgeGroup(dateOfBirth: string, seasonYear: number) {
 
 function getTrialSeasonYear() {
   return new Date().getFullYear();
+}
+
+function getTrialDateBounds(seasonYear: number) {
+  const earliestYear = seasonYear - 18;
+  const today = new Date();
+  const latestDate =
+    today.getFullYear() === seasonYear
+      ? today
+      : new Date(`${seasonYear}-12-31T00:00:00`);
+
+  return {
+    min: `${earliestYear}-01-01`,
+    max: latestDate.toISOString().slice(0, 10),
+  };
 }
 
 function mapTrialStatus(status: string): TrialApplication["status"] {

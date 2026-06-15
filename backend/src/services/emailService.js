@@ -13,7 +13,7 @@ const getProviderClient = () => {
   return new Resend(env.resendApiKey);
 };
 
-const sendEmail = async ({ to, subject, text }) => {
+const sendEmail = async ({ to, subject, text, html }) => {
   const client = getProviderClient();
 
   if (!client) {
@@ -29,6 +29,7 @@ const sendEmail = async ({ to, subject, text }) => {
     to,
     subject,
     text,
+    html,
   });
 
   if (response.error) {

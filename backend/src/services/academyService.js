@@ -56,12 +56,32 @@ const getCodeExpiryDate = () => {
 };
 
 const isExpired = (expiresAt) => expiresAt && new Date(expiresAt) <= new Date();
+const looksLikeHtml = (value = "") => /<\/?[a-z][\s\S]*>/i.test(value);
+const htmlToText = (value = "") =>
+  value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
 
 const createEmailLog = async (
   client,
   { to, subject, body, codeId, onboardingRecordId }
 ) => {
-  const result = await sendEmail({ to, subject, text: body });
+  const isHtml = looksLikeHtml(body);
+  const result = await sendEmail({
+    to,
+    subject,
+    text: isHtml ? htmlToText(body) : body,
+    html: isHtml ? body : undefined,
+  });
 
   return client.emailLog.create({
     data: {

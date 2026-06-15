@@ -68,6 +68,48 @@ ADMIN_EMAIL=admin@soccerschool.com
 ADMIN_PASSWORD=admin123
 ```
 
+## Business Flow Testing
+
+The backend includes an API-level business flow smoke test:
+
+Use a test-safe backend email configuration first. For local smoke testing,
+leave `RESEND_API_KEY` empty in `backend/.env` so email actions are logged as
+skipped instead of sending through Resend.
+
+```bash
+cd backend
+npm start
+```
+
+In another terminal:
+
+```bash
+cd backend
+npm run test:flow
+```
+
+The test expects the API at `http://localhost:5050` by default. Override it with
+`TEST_API_BASE_URL` when testing another environment.
+
+The frontend also includes a UI interaction flow test. Start the backend with
+the same test-safe email configuration:
+
+```bash
+cd backend
+npm start
+```
+
+In another terminal:
+
+```bash
+cd frontend
+npm run test:ui
+```
+
+The UI test starts Vite automatically and covers the browser interactions for
+New Trial, admin review, onboarding, Club Invite Trial lookup, and Holiday Camp
+payment simulation.
+
 ## Testing Deployment
 
 The repo includes `render.yaml` for a Render Blueprint deployment:
