@@ -60,6 +60,18 @@ services:
         value: https://cape-town-spurs-registration-test.onrender.com
       - key: CODE_EXPIRY_DAYS
         value: 30
+      - key: TRIAL_START_DATE
+        value: To be confirmed
+      - key: TRIAL_END_DATE
+        value: To be confirmed
+      - key: TRIAL_ARRIVAL_TIME
+        value: To be confirmed
+      - key: VITE_TRIAL_START_DATE
+        value: To be confirmed
+      - key: VITE_TRIAL_END_DATE
+        value: To be confirmed
+      - key: VITE_TRIAL_ARRIVAL_TIME
+        value: To be confirmed
 
 databases:
   - name: cape-town-spurs-registration-db

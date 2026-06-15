@@ -40,6 +40,9 @@ const env = {
     process.env.PUBLIC_API_URL ||
     "http://localhost:5050",
   codeExpiryDays: Number(process.env.CODE_EXPIRY_DAYS) || 30,
+  trialStartDate: process.env.TRIAL_START_DATE || "To be confirmed",
+  trialEndDate: process.env.TRIAL_END_DATE || "To be confirmed",
+  trialArrivalTime: process.env.TRIAL_ARRIVAL_TIME || "To be confirmed",
 };
 
 module.exports = env;

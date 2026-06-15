@@ -177,7 +177,7 @@ function TrialRegistration({
       setMessage(
         isClubInviteTrial
           ? `Club invite trial application saved. Membership number ${result.membershipNumber} is waiting for admin verification.`
-          : `Trial application saved. Membership number ${result.membershipNumber} was created and emailed to the parent. The application is waiting for admin verification.`,
+          : `Trial application saved. Membership number ${result.membershipNumber} was created. The application is waiting for admin verification.`,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Trial application failed.");
@@ -293,6 +293,12 @@ function TrialRegistration({
                   ? `${seasonYear} age group: ${ageGroup.label}`
                   : `Select a date of birth to calculate the ${seasonYear} age group.`}
               </span>
+              <div className="age-group-reminder" role="note">
+                <strong>Age group reminder</strong>
+                <span>
+                  The system calculates the age group from the player's birth year for the {seasonYear} season. Please check the result before saving.
+                </span>
+              </div>
             </FormField>
             <FormField label="Gender" htmlFor="trialGender" error={errors.gender} required>
               <select

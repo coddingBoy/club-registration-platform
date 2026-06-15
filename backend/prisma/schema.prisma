@@ -275,7 +275,7 @@ model ClubInviteApplication {
   province                 String?
   allergiesOrConditions    String?
   birthCertificateFileName String?
-  membershipCode           String
+  membershipCode           String              @unique
   inviteCode               String
   status                   TrialStatus         @default(PAID)
   authorisationCode        OneTimeCode?

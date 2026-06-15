@@ -126,8 +126,35 @@ const findTrialEmailLog = (trialApplication) => {
   });
 };
 
+const findApplicationEmailLog = ({ to, playerName, subjects }) =>
+  prisma.emailLog.findFirst({
+    where: {
+      to,
+      OR: subjects.map((subject) => ({
+        subject,
+        body: { contains: playerName },
+      })),
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+const buildTrialScheduleDetails = () =>
+  [
+    `Trial start date: ${env.trialStartDate}`,
+    `Trial end date: ${env.trialEndDate}`,
+    `Arrival time: ${env.trialArrivalTime}`,
+  ].join("\n");
+
+const appendTrialScheduleDetails = (body) =>
+  `${body}\n\nTrial details:\n${buildTrialScheduleDetails()}`;
+
+const ensureTrialScheduleDetails = (body) =>
+  body?.includes("Trial start date:") ? body : appendTrialScheduleDetails(body);
+
 const buildClubInviteTrialEmailBody = ({ playerName, membershipCode, inviteCode }) =>
-  `You have been invited to trial with Cape Town Spurs. Player: ${playerName}. Membership code: ${membershipCode}. Club invite trial code: ${inviteCode}. Registration link: ${env.clientUrl}.`;
+  appendTrialScheduleDetails(
+    `You have been invited to trial with Cape Town Spurs. Player: ${playerName}. Membership code: ${membershipCode}. Club invite trial code: ${inviteCode}. Registration link: ${env.clientUrl}.`,
+  );
 
 const getClubInviteTrialCodeByMembership = async (membershipCode) => {
   if (!membershipCode) {
@@ -210,10 +237,16 @@ const createTrialApplication = async (payload) => {
       guardianPhone: payload.guardianPhone,
       status: "TRIAL_PENDING",
     };
+    const existingPlayerUpdate = isClubInviteTrial
+      ? {
+          dateOfBirth: playerPayload.dateOfBirth,
+          ageGroup: playerPayload.ageGroup,
+        }
+      : playerPayload;
 
     const player = await tx.player.upsert({
       where: { membershipNumber },
-      update: playerPayload,
+      update: existingPlayerUpdate,
       create: {
         membershipNumber,
         ...playerPayload,
@@ -239,31 +272,31 @@ const createTrialApplication = async (payload) => {
       status: "PAID",
     };
 
-    const trialApplication = isClubInviteTrial
-      ? await tx.clubInviteApplication.create({
-          data: {
-            ...applicationData,
-            clubInviteTrialCode: { connect: { id: invite.id } },
-            membershipCode: invite.membershipCode,
-            inviteCode: invite.inviteCode,
-          },
-        })
-      : await tx.trialApplication.create({
-          data: {
-            ...applicationData,
-            trialFeeAmount,
-          },
-        });
+    let trialApplication;
+
+    if (isClubInviteTrial) {
+      const clubInviteApplicationData = {
+        ...applicationData,
+        clubInviteTrialCode: { connect: { id: invite.id } },
+        membershipCode: invite.membershipCode,
+        inviteCode: invite.inviteCode,
+      };
+
+      trialApplication = await tx.clubInviteApplication.upsert({
+        where: { membershipCode: invite.membershipCode },
+        update: clubInviteApplicationData,
+        create: clubInviteApplicationData,
+      });
+    } else {
+      trialApplication = await tx.trialApplication.create({
+        data: {
+          ...applicationData,
+          trialFeeAmount,
+        },
+      });
+    }
 
     return { trialApplication, player };
-  });
-
-  const emailLog = await createEmailLog(prisma, {
-    to: trialApplication.guardianEmail,
-    subject: isClubInviteTrial
-      ? "Cape Town Spurs club invite trial application received"
-      : "Cape Town Spurs trial application received",
-    body: `We received the ${isClubInviteTrial ? "club invite trial" : "trial"} application for ${trialApplication.playerName} ${trialApplication.playerSurname}. Membership number: ${player.membershipNumber}. The application is waiting for admin verification.`,
   });
 
   await createEmailLog(prisma, {
@@ -277,7 +310,6 @@ const createTrialApplication = async (payload) => {
   return {
     trialApplication,
     membershipNumber: player.membershipNumber,
-    emailLog,
   };
 };
 
@@ -426,7 +458,7 @@ const listSimpleRegistrations = () =>
     ),
   );
 
-const resendSimpleRegistrationEmail = async (registrationId) => {
+const resendSimpleRegistrationEmail = async (registrationId, emailBody) => {
   const registration = await prisma.simpleRegistration.findUnique({
     where: { id: registrationId },
   });
@@ -439,9 +471,12 @@ const resendSimpleRegistrationEmail = async (registrationId) => {
     throw new AppError("This registration type does not use membership email resend", 400);
   }
 
+  const email = buildSimpleRegistrationEmail(registration);
+
   return createEmailLog(prisma, {
     to: registration.email,
-    ...buildSimpleRegistrationEmail(registration),
+    subject: email.subject,
+    body: emailBody || email.body,
   });
 };
 
@@ -472,16 +507,6 @@ const createClubInviteTrialCode = async (payload) => {
     "inviteCode",
   );
 
-  const emailLog = await createEmailLog(prisma, {
-    to: payload.email,
-    subject: "Cape Town Spurs club invite trial code",
-    body: buildClubInviteTrialEmailBody({
-      playerName: payload.playerName,
-      membershipCode,
-      inviteCode,
-    }),
-  });
-
   return prisma.clubInviteTrialCode.create({
     data: {
       playerName: payload.playerName,
@@ -489,14 +514,11 @@ const createClubInviteTrialCode = async (payload) => {
       emailConfirm: payload.emailConfirm,
       membershipCode,
       inviteCode,
-      emailStatus: emailLog.status,
-      emailError: emailLog.error,
-      emailSentAt: emailLog.createdAt,
     },
   });
 };
 
-const resendClubInviteTrialCodeEmail = async (inviteId) => {
+const resendClubInviteTrialCodeEmail = async (inviteId, emailBody) => {
   const invite = await prisma.clubInviteTrialCode.findUnique({
     where: { id: inviteId },
   });
@@ -508,7 +530,7 @@ const resendClubInviteTrialCodeEmail = async (inviteId) => {
   const emailLog = await createEmailLog(prisma, {
     to: invite.email,
     subject: "Cape Town Spurs club invite trial code",
-    body: buildClubInviteTrialEmailBody(invite),
+    body: ensureTrialScheduleDetails(emailBody || buildClubInviteTrialEmailBody(invite)),
   });
 
   return prisma.clubInviteTrialCode.update({
@@ -539,7 +561,132 @@ const resetTestingData = async () =>
     return { resetAt: new Date().toISOString() };
   });
 
-const reviewTrialApplication = async (trialApplicationId, status) => {
+const sendInformationCheckEmail = async (
+  application,
+  status,
+  client = prisma,
+  emailBody,
+) => {
+  if (!["SUCCESSFUL", "UNSUCCESSFUL"].includes(status)) {
+    throw new AppError("Information check status must be SUCCESSFUL or UNSUCCESSFUL", 400);
+  }
+
+  const isSuccessful = status === "SUCCESSFUL";
+
+  return createEmailLog(client, {
+    to: application.guardianEmail,
+    subject: isSuccessful
+      ? "Cape Town Spurs information check successful"
+      : "Cape Town Spurs information check unsuccessful",
+    body: ensureTrialScheduleDetails(
+      emailBody || (isSuccessful
+        ? `Your information check for ${application.playerName} ${application.playerSurname} is successful. You can come to the trial please.`
+        : `Your information check for ${application.playerName} ${application.playerSurname} was unsuccessful because the birth certificate does not match the birthday provided on the application.`),
+    ),
+  });
+};
+
+const sendTrialInformationCheckEmail = async (trialApplicationId, status, emailBody) => {
+  const application = await prisma.trialApplication.findUnique({
+    where: { id: trialApplicationId },
+  });
+
+  if (!application) {
+    throw new AppError("Trial application not found", 404);
+  }
+
+  return sendInformationCheckEmail(application, status, prisma, emailBody);
+};
+
+const sendClubInviteInformationCheckEmail = async (
+  applicationId,
+  status,
+  emailBody,
+) => {
+  const application = await prisma.clubInviteApplication.findUnique({
+    where: { id: applicationId },
+  });
+
+  if (!application) {
+    throw new AppError("Club invite application not found", 404);
+  }
+
+  return sendInformationCheckEmail(application, status, prisma, emailBody);
+};
+
+const resendTrialReviewEmail = async (trialApplicationId, status, emailBody) => {
+  if (!["SUCCESSFUL", "UNSUCCESSFUL"].includes(status)) {
+    throw new AppError("Trial status must be SUCCESSFUL or UNSUCCESSFUL", 400);
+  }
+
+  const application = await prisma.trialApplication.findUnique({
+    where: { id: trialApplicationId },
+    include: { player: true, authorisationCode: true },
+  });
+
+  if (!application) {
+    throw new AppError("Trial application not found", 404);
+  }
+
+  if (application.status !== status) {
+    throw new AppError("Trial application has not been reviewed with this status", 409);
+  }
+
+  if (status === "SUCCESSFUL" && !application.authorisationCode) {
+    throw new AppError("Successful trial does not have an authorisation code", 409);
+  }
+
+  return createEmailLog(prisma, {
+    to: application.guardianEmail,
+    subject:
+      status === "SUCCESSFUL"
+        ? "Cape Town Spurs trial successful"
+        : "Cape Town Spurs trial outcome",
+    body: ensureTrialScheduleDetails(emailBody || (
+      status === "SUCCESSFUL"
+        ? `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.player?.membershipNumber || "not available"}. Authorisation code: ${application.authorisationCode.code}.`
+        : `Thank you for applying for trials. ${application.playerName} ${application.playerSurname} was not successful this time. Membership number: ${application.player?.membershipNumber || "not available"}.`)),
+    codeId: status === "SUCCESSFUL" ? application.authorisationCode.id : undefined,
+  });
+};
+
+const resendClubInviteReviewEmail = async (applicationId, status, emailBody) => {
+  if (!["SUCCESSFUL", "UNSUCCESSFUL"].includes(status)) {
+    throw new AppError("Trial status must be SUCCESSFUL or UNSUCCESSFUL", 400);
+  }
+
+  const application = await prisma.clubInviteApplication.findUnique({
+    where: { id: applicationId },
+    include: { authorisationCode: true },
+  });
+
+  if (!application) {
+    throw new AppError("Club invite application not found", 404);
+  }
+
+  if (application.status !== status) {
+    throw new AppError("Club invite application has not been reviewed with this status", 409);
+  }
+
+  if (status === "SUCCESSFUL" && !application.authorisationCode) {
+    throw new AppError("Successful club invite application does not have an authorisation code", 409);
+  }
+
+  return createEmailLog(prisma, {
+    to: application.guardianEmail,
+    subject:
+      status === "SUCCESSFUL"
+        ? "Cape Town Spurs club invite trial successful"
+        : "Cape Town Spurs club invite trial outcome",
+    body: ensureTrialScheduleDetails(emailBody || (
+      status === "SUCCESSFUL"
+        ? `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.membershipCode}. Authorisation code: ${application.authorisationCode.code}.`
+        : `Thank you for applying for the club invite trial. ${application.playerName} ${application.playerSurname} was not successful this time. Membership number: ${application.membershipCode}.`)),
+    codeId: status === "SUCCESSFUL" ? application.authorisationCode.id : undefined,
+  });
+};
+
+const reviewTrialApplication = async (trialApplicationId, status, emailBody) => {
   if (!["SUCCESSFUL", "UNSUCCESSFUL"].includes(status)) {
     throw new AppError("Trial status must be SUCCESSFUL or UNSUCCESSFUL", 400);
   }
@@ -574,7 +721,7 @@ const reviewTrialApplication = async (trialApplicationId, status) => {
       const emailLog = await createEmailLog(tx, {
         to: application.guardianEmail,
         subject: "Cape Town Spurs trial outcome",
-        body: `Thank you for applying for trials. ${application.playerName} ${application.playerSurname} was not successful this time. Membership number: ${application.player?.membershipNumber || "not available"}.`,
+        body: ensureTrialScheduleDetails(emailBody || `Thank you for applying for trials. ${application.playerName} ${application.playerSurname} was not successful this time. Membership number: ${application.player?.membershipNumber || "not available"}.`),
       });
 
       return { trialApplication: updatedApplication, code: null, emailLog };
@@ -604,7 +751,7 @@ const reviewTrialApplication = async (trialApplicationId, status) => {
     const emailLog = await createEmailLog(tx, {
       to: application.guardianEmail,
       subject: "Cape Town Spurs trial successful",
-      body: `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.player?.membershipNumber || "not available"}. Authorisation code: ${code.code}.`,
+      body: ensureTrialScheduleDetails(emailBody || `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.player?.membershipNumber || "not available"}. Authorisation code: ${code.code}.`),
       codeId: code.id,
     });
 
@@ -612,7 +759,7 @@ const reviewTrialApplication = async (trialApplicationId, status) => {
   });
 };
 
-const reviewClubInviteApplication = async (applicationId, status) => {
+const reviewClubInviteApplication = async (applicationId, status, emailBody) => {
   if (!["SUCCESSFUL", "UNSUCCESSFUL"].includes(status)) {
     throw new AppError("Trial status must be SUCCESSFUL or UNSUCCESSFUL", 400);
   }
@@ -647,7 +794,7 @@ const reviewClubInviteApplication = async (applicationId, status) => {
       const emailLog = await createEmailLog(tx, {
         to: application.guardianEmail,
         subject: "Cape Town Spurs club invite trial outcome",
-        body: `Thank you for applying for the club invite trial. ${application.playerName} ${application.playerSurname} was not successful this time. Membership number: ${application.membershipCode}.`,
+        body: ensureTrialScheduleDetails(emailBody || `Thank you for applying for the club invite trial. ${application.playerName} ${application.playerSurname} was not successful this time. Membership number: ${application.membershipCode}.`),
       });
 
       return { clubInviteApplication: updatedApplication, code: null, emailLog };
@@ -677,7 +824,7 @@ const reviewClubInviteApplication = async (applicationId, status) => {
     const emailLog = await createEmailLog(tx, {
       to: application.guardianEmail,
       subject: "Cape Town Spurs club invite trial successful",
-      body: `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.membershipCode}. Authorisation code: ${code.code}.`,
+      body: ensureTrialScheduleDetails(emailBody || `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.membershipCode}. Authorisation code: ${code.code}.`),
       codeId: code.id,
     });
 
@@ -709,6 +856,24 @@ const listTrialApplications = () =>
     Promise.all(
       applications.map(async (application) => {
         const emailLog = await findTrialEmailLog(application);
+        const informationCheckEmailLog = await findApplicationEmailLog({
+          to: application.guardianEmail,
+          playerName: application.playerName,
+          subjects: [
+            "Cape Town Spurs information check successful",
+            "Cape Town Spurs information check unsuccessful",
+          ],
+        });
+        const qualificationEmailLog =
+          application.authorisationCode?.emailLogs?.[0] ||
+          await findApplicationEmailLog({
+            to: application.guardianEmail,
+            playerName: application.playerName,
+            subjects: [
+              "Cape Town Spurs trial successful",
+              "Cape Town Spurs trial outcome",
+            ],
+          });
 
         return {
           ...application,
@@ -720,14 +885,33 @@ const listTrialApplications = () =>
           emailStatus: emailLog?.status,
           emailError: emailLog?.error,
           emailSentAt: emailLog?.createdAt,
+          informationCheckEmailStatus: informationCheckEmailLog?.status,
+          informationCheckEmailError: informationCheckEmailLog?.error,
+          informationCheckEmailSentAt: informationCheckEmailLog?.createdAt,
+          qualificationEmailStatus: qualificationEmailLog?.status,
+          qualificationEmailError: qualificationEmailLog?.error,
+          qualificationEmailSentAt: qualificationEmailLog?.createdAt,
         };
       }),
     ),
   );
 
+const uniqueLatestClubInviteApplications = (applications) => {
+  const seenMembershipCodes = new Set();
+
+  return applications.filter((application) => {
+    if (seenMembershipCodes.has(application.membershipCode)) {
+      return false;
+    }
+
+    seenMembershipCodes.add(application.membershipCode);
+    return true;
+  });
+};
+
 const listClubInviteApplications = () =>
   prisma.clubInviteApplication.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { updatedAt: "desc" },
     include: {
       player: {
         include: {
@@ -748,7 +932,7 @@ const listClubInviteApplications = () =>
     },
   }).then(async (applications) =>
     Promise.all(
-      applications.map(async (application) => {
+      uniqueLatestClubInviteApplications(applications).map(async (application) => {
         const emailLog = application.authorisationCode?.emailLogs?.[0] ||
           await prisma.emailLog.findFirst({
           where: {
@@ -762,6 +946,24 @@ const listClubInviteApplications = () =>
           },
           orderBy: { createdAt: "desc" },
         });
+        const informationCheckEmailLog = await findApplicationEmailLog({
+          to: application.guardianEmail,
+          playerName: application.playerName,
+          subjects: [
+            "Cape Town Spurs information check successful",
+            "Cape Town Spurs information check unsuccessful",
+          ],
+        });
+        const qualificationEmailLog =
+          application.authorisationCode?.emailLogs?.[0] ||
+          await findApplicationEmailLog({
+            to: application.guardianEmail,
+            playerName: application.playerName,
+            subjects: [
+              "Cape Town Spurs club invite trial successful",
+              "Cape Town Spurs club invite trial outcome",
+            ],
+          });
 
         return {
           ...application,
@@ -773,6 +975,12 @@ const listClubInviteApplications = () =>
           emailStatus: emailLog?.status,
           emailError: emailLog?.error,
           emailSentAt: emailLog?.createdAt,
+          informationCheckEmailStatus: informationCheckEmailLog?.status,
+          informationCheckEmailError: informationCheckEmailLog?.error,
+          informationCheckEmailSentAt: informationCheckEmailLog?.createdAt,
+          qualificationEmailStatus: qualificationEmailLog?.status,
+          qualificationEmailError: qualificationEmailLog?.error,
+          qualificationEmailSentAt: qualificationEmailLog?.createdAt,
         };
       }),
     ),
@@ -1180,6 +1388,10 @@ module.exports = {
   createClubInviteTrialCode,
   resendClubInviteTrialCodeEmail,
   resetTestingData,
+  sendTrialInformationCheckEmail,
+  sendClubInviteInformationCheckEmail,
+  resendTrialReviewEmail,
+  resendClubInviteReviewEmail,
   createRenewalCode,
   bulkCreateRenewalCodes,
   listCodes,

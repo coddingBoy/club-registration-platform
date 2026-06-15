@@ -99,6 +99,12 @@ export type TrialApplication = TrialRegistration & {
   emailStatus?: string;
   emailError?: string;
   emailSentAt?: string;
+  informationCheckEmailStatus?: string;
+  informationCheckEmailError?: string;
+  informationCheckEmailSentAt?: string;
+  qualificationEmailStatus?: string;
+  qualificationEmailError?: string;
+  qualificationEmailSentAt?: string;
 };
 
 export type ClubInviteApplication = TrialRegistration & {
@@ -112,6 +118,12 @@ export type ClubInviteApplication = TrialRegistration & {
   emailStatus?: string;
   emailError?: string;
   emailSentAt?: string;
+  informationCheckEmailStatus?: string;
+  informationCheckEmailError?: string;
+  informationCheckEmailSentAt?: string;
+  qualificationEmailStatus?: string;
+  qualificationEmailError?: string;
+  qualificationEmailSentAt?: string;
 };
 
 export type TrialOnboardingCredentials = {

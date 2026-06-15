@@ -18,6 +18,10 @@ const {
   getTrialApplications,
   patchAdminTrialReview,
   patchAdminClubInviteApplicationReview,
+  postAdminTrialInformationCheckEmail,
+  postAdminTrialReviewEmail,
+  postAdminClubInviteInformationCheckEmail,
+  postAdminClubInviteReviewEmail,
   postAdminCodeEmail,
   postAdminClubInviteTrialCode,
   postAdminClubInviteTrialCodeEmail,
@@ -67,11 +71,27 @@ router.post("/payments/payfast/itn", postPayFastNotification);
 
 router.get("/admin/trials", adminRead, getAdminTrialApplications);
 router.patch("/admin/trials/:id/review", adminWrite, patchAdminTrialReview);
+router.post(
+  "/admin/trials/:id/information-check-email",
+  adminWrite,
+  postAdminTrialInformationCheckEmail,
+);
+router.post("/admin/trials/:id/review-email", adminWrite, postAdminTrialReviewEmail);
 router.get("/admin/club-invite-applications", adminRead, getAdminClubInviteApplications);
 router.patch(
   "/admin/club-invite-applications/:id/review",
   adminWrite,
   patchAdminClubInviteApplicationReview,
+);
+router.post(
+  "/admin/club-invite-applications/:id/information-check-email",
+  adminWrite,
+  postAdminClubInviteInformationCheckEmail,
+);
+router.post(
+  "/admin/club-invite-applications/:id/review-email",
+  adminWrite,
+  postAdminClubInviteReviewEmail,
 );
 router.get("/admin/club-invite-trials", adminRead, getAdminClubInviteTrialCodes);
 router.post("/admin/club-invite-trials", adminWrite, postAdminClubInviteTrialCode);

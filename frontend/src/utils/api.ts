@@ -169,6 +169,12 @@ export async function getTrialApplications() {
       emailStatus?: string;
       emailError?: string | null;
       emailSentAt?: string;
+      informationCheckEmailStatus?: string;
+      informationCheckEmailError?: string | null;
+      informationCheckEmailSentAt?: string;
+      qualificationEmailStatus?: string;
+      qualificationEmailError?: string | null;
+      qualificationEmailSentAt?: string;
     }>
   >;
 }
@@ -220,6 +226,12 @@ export async function getClubInviteApplications() {
       emailStatus?: string;
       emailError?: string | null;
       emailSentAt?: string;
+      informationCheckEmailStatus?: string;
+      informationCheckEmailError?: string | null;
+      informationCheckEmailSentAt?: string;
+      qualificationEmailStatus?: string;
+      qualificationEmailError?: string | null;
+      qualificationEmailSentAt?: string;
     }>
   >;
 }
@@ -298,7 +310,7 @@ export async function getClubInviteTrialCodes(token: string) {
 }
 
 export async function createClubInviteTrialCode(
-  payload: { playerName: string; email: string; emailConfirm: string },
+  payload: { playerName: string; email: string; emailConfirm: string; emailBody?: string },
   token: string,
 ) {
   const response = await fetch(`${apiBaseUrl}/api/academy/admin/club-invite-trials`, {
@@ -329,14 +341,20 @@ export async function createClubInviteTrialCode(
   }>;
 }
 
-export async function resendClubInviteTrialCodeEmail(inviteId: string, token: string) {
+export async function resendClubInviteTrialCodeEmail(
+  inviteId: string,
+  token: string,
+  emailBody?: string,
+) {
   const response = await fetch(
     `${apiBaseUrl}/api/academy/admin/club-invite-trials/${inviteId}/send-email`,
     {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({ emailBody }),
     },
   );
 
@@ -379,6 +397,7 @@ export async function reviewTrialApplication(
   trialApplicationId: string,
   status: "SUCCESSFUL" | "UNSUCCESSFUL",
   token: string,
+  emailBody?: string,
 ) {
   const response = await fetch(
     `${apiBaseUrl}/api/academy/admin/trials/${trialApplicationId}/review`,
@@ -388,7 +407,7 @@ export async function reviewTrialApplication(
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, emailBody }),
     },
   );
 
@@ -416,10 +435,73 @@ export async function reviewTrialApplication(
   }>;
 }
 
+export async function sendTrialInformationCheckEmail(
+  trialApplicationId: string,
+  status: "SUCCESSFUL" | "UNSUCCESSFUL",
+  token: string,
+  emailBody?: string,
+) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/trials/${trialApplicationId}/information-check-email`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status, emailBody }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Information check email failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    status: string;
+    error?: string | null;
+    createdAt: string;
+  }>;
+}
+
+export async function resendTrialReviewEmail(
+  trialApplicationId: string,
+  status: "SUCCESSFUL" | "UNSUCCESSFUL",
+  token: string,
+  emailBody?: string,
+) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/trials/${trialApplicationId}/review-email`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status, emailBody }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Review email resend failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    status: string;
+    error?: string | null;
+    createdAt: string;
+  }>;
+}
+
 export async function reviewClubInviteApplication(
   applicationId: string,
   status: "SUCCESSFUL" | "UNSUCCESSFUL",
   token: string,
+  emailBody?: string,
 ) {
   const response = await fetch(
     `${apiBaseUrl}/api/academy/admin/club-invite-applications/${applicationId}/review`,
@@ -429,7 +511,7 @@ export async function reviewClubInviteApplication(
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, emailBody }),
     },
   );
 
@@ -454,6 +536,68 @@ export async function reviewClubInviteApplication(
       error?: string | null;
       createdAt: string;
     };
+  }>;
+}
+
+export async function sendClubInviteInformationCheckEmail(
+  applicationId: string,
+  status: "SUCCESSFUL" | "UNSUCCESSFUL",
+  token: string,
+  emailBody?: string,
+) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/club-invite-applications/${applicationId}/information-check-email`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status, emailBody }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Information check email failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    status: string;
+    error?: string | null;
+    createdAt: string;
+  }>;
+}
+
+export async function resendClubInviteReviewEmail(
+  applicationId: string,
+  status: "SUCCESSFUL" | "UNSUCCESSFUL",
+  token: string,
+  emailBody?: string,
+) {
+  const response = await fetch(
+    `${apiBaseUrl}/api/academy/admin/club-invite-applications/${applicationId}/review-email`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status, emailBody }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(error?.message || `Review email resend failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    status: string;
+    error?: string | null;
+    createdAt: string;
   }>;
 }
 
@@ -541,14 +685,20 @@ export async function simulateSimpleRegistrationPayment(registrationId: string) 
   }>;
 }
 
-export async function resendSimpleRegistrationEmail(registrationId: string, token: string) {
+export async function resendSimpleRegistrationEmail(
+  registrationId: string,
+  token: string,
+  emailBody?: string,
+) {
   const response = await fetch(
     `${apiBaseUrl}/api/academy/admin/simple-registrations/${registrationId}/send-email`,
     {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({ emailBody }),
     },
   );
 

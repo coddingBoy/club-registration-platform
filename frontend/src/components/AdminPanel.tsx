@@ -19,19 +19,36 @@ type AdminPanelProps = {
     playerName: string;
     email: string;
     emailConfirm: string;
+    emailBody?: string;
   }) => Promise<void>;
-  onResendClubInviteTrialCode: (inviteId: string) => Promise<void>;
-  onResendTrialEmail: (codeId: string) => Promise<void>;
+  onResendClubInviteTrialCode: (inviteId: string, emailBody: string) => Promise<void>;
   onReviewTrial: (
     trialApplicationId: string,
     status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
   ) => Promise<void>;
   onReviewClubInviteApplication: (
     applicationId: string,
     status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
+  ) => Promise<void>;
+  onSendInformationCheckEmail: (
+    applicationType: "trial" | "club-invite",
+    applicationId: string,
+    status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
+  ) => Promise<void>;
+  onResendReviewEmail: (
+    applicationType: "trial" | "club-invite",
+    applicationId: string,
+    status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
   ) => Promise<void>;
   onPreviewTrialBirthCertificate: (documentId: string) => Promise<void>;
-  onResendSimpleRegistrationEmail: (registrationId: string) => Promise<void>;
+  onResendSimpleRegistrationEmail: (
+    registrationId: string,
+    emailBody: string,
+  ) => Promise<void>;
   onResetTestingData: () => Promise<void>;
 };
 
@@ -44,6 +61,17 @@ const simpleRegistrationLabels: Record<SimpleRegistrationType, string> = {
   "match-tickets": "Match Tickets",
 };
 
+const appLink = window.location.origin;
+const trialScheduleDetails = [
+  `Trial start date: ${import.meta.env.VITE_TRIAL_START_DATE || "To be confirmed"}`,
+  `Trial end date: ${import.meta.env.VITE_TRIAL_END_DATE || "To be confirmed"}`,
+  `Arrival time: ${import.meta.env.VITE_TRIAL_ARRIVAL_TIME || "To be confirmed"}`,
+].join("\n");
+const appendTrialScheduleDetails = (body: string) =>
+  body.includes("Trial start date:")
+    ? body
+    : `${body}\n\nTrial details:\n${trialScheduleDetails}`;
+
 function AdminPanel({
   trialApplications,
   clubInviteApplications,
@@ -52,16 +80,17 @@ function AdminPanel({
   onboardingCompletions,
   onGenerateClubInviteTrialCode,
   onResendClubInviteTrialCode,
-  onResendTrialEmail,
   onReviewTrial,
   onReviewClubInviteApplication,
+  onSendInformationCheckEmail,
+  onResendReviewEmail,
   onPreviewTrialBirthCertificate,
   onResendSimpleRegistrationEmail,
   onResetTestingData,
 }: AdminPanelProps) {
-  const [resendingCodeId, setResendingCodeId] = useState("");
   const [reviewingTrialId, setReviewingTrialId] = useState("");
   const [reviewingClubInviteId, setReviewingClubInviteId] = useState("");
+  const [emailActionKey, setEmailActionKey] = useState("");
   const [previewingDocumentId, setPreviewingDocumentId] = useState("");
   const [resendingRegistrationId, setResendingRegistrationId] = useState("");
   const [resendingClubInviteId, setResendingClubInviteId] = useState("");
@@ -74,6 +103,35 @@ function AdminPanel({
   });
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
+  const [emailComposer, setEmailComposer] = useState<{
+    title: string;
+    to: string;
+    body: string;
+    onSend: (body: string) => Promise<void>;
+  } | null>(null);
+  const [isSendingComposer, setIsSendingComposer] = useState(false);
+
+  const openEmailComposer = (config: {
+    title: string;
+    to: string;
+    body: string;
+    onSend: (body: string) => Promise<void>;
+  }) => {
+    setEmailComposer(config);
+  };
+
+  const sendComposedEmail = async () => {
+    if (!emailComposer) return;
+
+    setIsSendingComposer(true);
+
+    try {
+      await emailComposer.onSend(emailComposer.body);
+      setEmailComposer(null);
+    } finally {
+      setIsSendingComposer(false);
+    }
+  };
 
   const generateClubInviteTrialCode = async () => {
     const nextErrors: Record<string, string> = {};
@@ -102,9 +160,7 @@ function AdminPanel({
     try {
       await onGenerateClubInviteTrialCode(inviteValues);
       setInviteValues({ playerName: "", email: "", emailConfirm: "" });
-      setResendMessage(
-        `Club invite trial code generated and sent to ${inviteValues.email}.`,
-      );
+      setResendMessage("Club invite membership and trial code generated.");
     } catch (error) {
       setResendMessage(
         error instanceof Error
@@ -116,55 +172,41 @@ function AdminPanel({
     }
   };
 
-  const resendTrialEmail = async (
-    application: TrialApplication | ClubInviteApplication,
-  ) => {
-    if (!application.authorisationCodeId) return;
-
-    setResendingCodeId(application.authorisationCodeId);
-    setResendMessage("");
-
-    try {
-      await onResendTrialEmail(application.authorisationCodeId);
-      setResendMessage(
-        `Resent email to ${application.guardianEmail}. Check the Email Status column for delivery result.`,
-      );
-    } catch (error) {
-      setResendMessage(
-        error instanceof Error ? error.message : "Email resend failed. Please try again.",
-      );
-    } finally {
-      setResendingCodeId("");
-    }
-  };
-
   const resendClubInviteTrialCode = async (invite: ClubInviteTrialCode) => {
-    setResendingClubInviteId(invite.id);
-    setResendMessage("");
+    openEmailComposer({
+      title: "Send Club Invite Trial Code",
+      to: invite.email,
+      body: buildClubInviteCodeMessage(invite),
+      onSend: async (emailBody) => {
+        setResendingClubInviteId(invite.id);
+        setResendMessage("");
 
-    try {
-      await onResendClubInviteTrialCode(invite.id);
-      setResendMessage(
-        `Resent club invite trial code to ${invite.email}. Check the Email Status column for delivery result.`,
-      );
-    } catch (error) {
-      setResendMessage(
-        error instanceof Error ? error.message : "Email resend failed. Please try again.",
-      );
-    } finally {
-      setResendingClubInviteId("");
-    }
+        try {
+          await onResendClubInviteTrialCode(invite.id, emailBody);
+          setResendMessage(
+            `Sent club invite trial code to ${invite.email}. Check the Email Status column for delivery result.`,
+          );
+        } catch (error) {
+          setResendMessage(
+            error instanceof Error ? error.message : "Email resend failed. Please try again.",
+          );
+        } finally {
+          setResendingClubInviteId("");
+        }
+      },
+    });
   };
 
   const reviewTrial = async (
     application: TrialApplication,
     status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
   ) => {
     setReviewingTrialId(application.id);
     setResendMessage("");
 
     try {
-      await onReviewTrial(application.id, status);
+      await onReviewTrial(application.id, status, emailBody);
       setResendMessage(
         status === "SUCCESSFUL"
           ? `Marked ${application.playerName} ${application.playerSurname} successful. Authorisation email sent to ${application.guardianEmail}.`
@@ -182,12 +224,13 @@ function AdminPanel({
   const reviewClubInviteApplication = async (
     application: ClubInviteApplication,
     status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
   ) => {
     setReviewingClubInviteId(application.id);
     setResendMessage("");
 
     try {
-      await onReviewClubInviteApplication(application.id, status);
+      await onReviewClubInviteApplication(application.id, status, emailBody);
       setResendMessage(
         status === "SUCCESSFUL"
           ? `Marked ${application.playerName} ${application.playerSurname} successful. Authorisation email sent to ${application.guardianEmail}.`
@@ -201,6 +244,62 @@ function AdminPanel({
       );
     } finally {
       setReviewingClubInviteId("");
+    }
+  };
+
+  const sendInformationCheckEmail = async (
+    application: TrialApplication | ClubInviteApplication,
+    applicationType: "trial" | "club-invite",
+    status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
+  ) => {
+    const actionKey = `${applicationType}-${application.id}-info-${status}`;
+    setEmailActionKey(actionKey);
+    setResendMessage("");
+
+    try {
+      await onSendInformationCheckEmail(applicationType, application.id, status, emailBody);
+      setResendMessage(
+        status === "SUCCESSFUL"
+          ? `Information check successful email sent to ${application.guardianEmail}.`
+          : `Information check failed email sent to ${application.guardianEmail}.`,
+      );
+    } catch (error) {
+      setResendMessage(
+        error instanceof Error
+          ? error.message
+          : "Information check email failed. Please try again.",
+      );
+    } finally {
+      setEmailActionKey("");
+    }
+  };
+
+  const resendReviewEmail = async (
+    application: TrialApplication | ClubInviteApplication,
+    applicationType: "trial" | "club-invite",
+    status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
+  ) => {
+    const actionKey = `${applicationType}-${application.id}-review-${status}`;
+    setEmailActionKey(actionKey);
+    setResendMessage("");
+
+    try {
+      await onResendReviewEmail(applicationType, application.id, status, emailBody);
+      setResendMessage(
+        status === "SUCCESSFUL"
+          ? `Resent successful review email to ${application.guardianEmail}.`
+          : `Resent failed review email to ${application.guardianEmail}.`,
+      );
+    } catch (error) {
+      setResendMessage(
+        error instanceof Error
+          ? error.message
+          : "Review email resend failed. Please try again.",
+      );
+    } finally {
+      setEmailActionKey("");
     }
   };
 
@@ -227,12 +326,13 @@ function AdminPanel({
 
   const resendSimpleRegistrationEmail = async (
     registration: SimpleRegistrationRecord,
+    emailBody: string,
   ) => {
     setResendingRegistrationId(registration.id);
     setResendMessage("");
 
     try {
-      await onResendSimpleRegistrationEmail(registration.id);
+      await onResendSimpleRegistrationEmail(registration.id, emailBody);
       setResendMessage(
         `Resent email to ${registration.email}. Check the Email Status column for delivery result.`,
       );
@@ -265,6 +365,170 @@ function AdminPanel({
     } finally {
       setIsResettingData(false);
     }
+  };
+
+  const renderReviewActions = (
+    application: TrialApplication | ClubInviteApplication,
+    applicationType: "trial" | "club-invite",
+  ) => {
+    const reviewBusy =
+      applicationType === "trial"
+        ? reviewingTrialId === application.id
+        : reviewingClubInviteId === application.id;
+    const canReview = application.status === "paid";
+    const finalStatus =
+      application.status === "successful"
+        ? "SUCCESSFUL"
+        : application.status === "unsuccessful"
+          ? "UNSUCCESSFUL"
+          : null;
+
+    return (
+      <div className="table-action-group">
+        <button
+          className="secondary-button table-action-button"
+          type="button"
+          disabled={emailActionKey === `${applicationType}-${application.id}-info-SUCCESSFUL`}
+          onClick={() =>
+            openEmailComposer({
+              title: "Information Check Successful Email",
+              to: application.guardianEmail,
+              body: buildInformationCheckMessage(application, "SUCCESSFUL"),
+              onSend: (emailBody) =>
+                sendInformationCheckEmail(
+                  application,
+                  applicationType,
+                  "SUCCESSFUL",
+                  emailBody,
+                ),
+            })
+          }
+        >
+          {emailActionKey === `${applicationType}-${application.id}-info-SUCCESSFUL`
+            ? "Sending..."
+            : "Info Check OK"}
+        </button>
+        <button
+          className="secondary-button table-action-button danger"
+          type="button"
+          disabled={emailActionKey === `${applicationType}-${application.id}-info-UNSUCCESSFUL`}
+          onClick={() =>
+            openEmailComposer({
+              title: "Information Check Failed Email",
+              to: application.guardianEmail,
+              body: buildInformationCheckMessage(application, "UNSUCCESSFUL"),
+              onSend: (emailBody) =>
+                sendInformationCheckEmail(
+                  application,
+                  applicationType,
+                  "UNSUCCESSFUL",
+                  emailBody,
+                ),
+            })
+          }
+        >
+          {emailActionKey === `${applicationType}-${application.id}-info-UNSUCCESSFUL`
+            ? "Sending..."
+            : "Info Check Fail"}
+        </button>
+
+        {canReview ? (
+          <>
+            <button
+              className="secondary-button table-action-button"
+              type="button"
+              disabled={reviewBusy}
+              onClick={() =>
+                openEmailComposer({
+                  title: "Final Successful Review Email",
+                  to: application.guardianEmail,
+                  body: buildFinalReviewMessage(application, "SUCCESSFUL"),
+                  onSend: (emailBody) =>
+                    applicationType === "trial"
+                      ? reviewTrial(
+                          application as TrialApplication,
+                          "SUCCESSFUL",
+                          emailBody,
+                        )
+                      : reviewClubInviteApplication(
+                          application as ClubInviteApplication,
+                          "SUCCESSFUL",
+                          emailBody,
+                        ),
+                })
+              }
+            >
+              {reviewBusy ? "Saving..." : "Successful"}
+            </button>
+            <button
+              className="secondary-button table-action-button danger"
+              type="button"
+              disabled={reviewBusy}
+              onClick={() =>
+                openEmailComposer({
+                  title: "Final Failed Review Email",
+                  to: application.guardianEmail,
+                  body: buildFinalReviewMessage(application, "UNSUCCESSFUL"),
+                  onSend: (emailBody) =>
+                    applicationType === "trial"
+                      ? reviewTrial(
+                          application as TrialApplication,
+                          "UNSUCCESSFUL",
+                          emailBody,
+                        )
+                      : reviewClubInviteApplication(
+                          application as ClubInviteApplication,
+                          "UNSUCCESSFUL",
+                          emailBody,
+                        ),
+                })
+              }
+            >
+              Fail
+            </button>
+          </>
+        ) : finalStatus ? (
+          <button
+            className={
+              finalStatus === "SUCCESSFUL"
+                ? "secondary-button table-action-button"
+                : "secondary-button table-action-button danger"
+            }
+            type="button"
+            disabled={
+              emailActionKey ===
+              `${applicationType}-${application.id}-review-${finalStatus}`
+            }
+            onClick={() =>
+              openEmailComposer({
+                title:
+                  finalStatus === "SUCCESSFUL"
+                    ? "Resend Successful Review Email"
+                    : "Resend Failed Review Email",
+                to: application.guardianEmail,
+                body: buildFinalReviewMessage(application, finalStatus),
+                onSend: (emailBody) =>
+                  resendReviewEmail(
+                    application,
+                    applicationType,
+                    finalStatus,
+                    emailBody,
+                  ),
+              })
+            }
+          >
+            {emailActionKey ===
+            `${applicationType}-${application.id}-review-${finalStatus}`
+              ? "Sending..."
+              : finalStatus === "SUCCESSFUL"
+                ? "Resend Success"
+                : "Resend Fail"}
+          </button>
+        ) : (
+          "Reviewed"
+        )}
+      </div>
+    );
   };
 
   const exportCsv = () => {
@@ -456,7 +720,7 @@ function AdminPanel({
                   <th>Membership Code</th>
                   <th>Club Invite Trial Code</th>
                   <th>Email Status</th>
-                  <th>Resend</th>
+                  <th>Send Email</th>
                   <th>Generated</th>
                 </tr>
               </thead>
@@ -484,7 +748,7 @@ function AdminPanel({
                         disabled={resendingClubInviteId === invite.id}
                         onClick={() => void resendClubInviteTrialCode(invite)}
                       >
-                        {resendingClubInviteId === invite.id ? "Sending..." : "Resend"}
+                        {resendingClubInviteId === invite.id ? "Sending..." : "Send Email"}
                       </button>
                     </td>
                     <td>{formatDateTime(invite.createdAt)}</td>
@@ -503,6 +767,7 @@ function AdminPanel({
               <thead>
                 <tr>
                   <th>Player</th>
+                  <th>Birthday</th>
                   <th>Age Group</th>
                   <th>Gender</th>
                   <th>Guardian</th>
@@ -511,7 +776,8 @@ function AdminPanel({
                   <th>Membership</th>
                   <th>Club Invite Code</th>
                   <th>Birth Certificate</th>
-                  <th>Email Status</th>
+                  <th>Info Check Status</th>
+                  <th>Qualification Review Status</th>
                   <th>Review</th>
                   <th>Status</th>
                   <th>Submitted</th>
@@ -525,6 +791,7 @@ function AdminPanel({
                         {application.playerName} {application.playerSurname}
                       </strong>
                     </td>
+                    <td>{formatDateOnly(application.dateOfBirth)}</td>
                     <td>{application.ageGroup || "Not calculated"}</td>
                     <td>{application.gender || "Not provided"}</td>
                     <td>
@@ -555,54 +822,18 @@ function AdminPanel({
                       )}
                     </td>
                     <td>
-                      <span className={getEmailStatusClass(application.emailStatus)}>
-                        {getEmailStatusLabel(application.emailStatus)}
-                      </span>
-                      {application.emailError && (
-                        <small className="table-error">{application.emailError}</small>
-                      )}
+                      <EmailStatusCell
+                        status={application.informationCheckEmailStatus}
+                        error={application.informationCheckEmailError}
+                      />
                     </td>
                     <td>
-                      {application.status === "paid" ? (
-                        <div className="table-action-group">
-                          <button
-                            className="secondary-button table-action-button"
-                            type="button"
-                            disabled={reviewingClubInviteId === application.id}
-                            onClick={() =>
-                              void reviewClubInviteApplication(application, "SUCCESSFUL")
-                            }
-                          >
-                            {reviewingClubInviteId === application.id
-                              ? "Saving..."
-                              : "Successful"}
-                          </button>
-                          <button
-                            className="secondary-button table-action-button danger"
-                            type="button"
-                            disabled={reviewingClubInviteId === application.id}
-                            onClick={() =>
-                              void reviewClubInviteApplication(application, "UNSUCCESSFUL")
-                            }
-                          >
-                            Fail
-                          </button>
-                        </div>
-                      ) : application.authorisationCodeId ? (
-                        <button
-                          className="secondary-button table-action-button"
-                          type="button"
-                          disabled={resendingCodeId === application.authorisationCodeId}
-                          onClick={() => void resendTrialEmail(application)}
-                        >
-                          {resendingCodeId === application.authorisationCodeId
-                            ? "Sending..."
-                            : "Resend Email"}
-                        </button>
-                      ) : (
-                        "Reviewed"
-                      )}
+                      <EmailStatusCell
+                        status={application.qualificationEmailStatus}
+                        error={application.qualificationEmailError}
+                      />
                     </td>
+                    <td>{renderReviewActions(application, "club-invite")}</td>
                     <td>
                       <span className="table-status">
                         {getTrialStatusLabel(application.status)}
@@ -624,6 +855,7 @@ function AdminPanel({
               <thead>
                 <tr>
                   <th>Player</th>
+                  <th>Birthday</th>
                   <th>Age Group</th>
                   <th>Gender</th>
                   <th>Guardian</th>
@@ -633,7 +865,8 @@ function AdminPanel({
                   <th>Membership</th>
                   <th>Authorisation Code</th>
                   <th>Birth Certificate</th>
-                  <th>Email Status</th>
+                  <th>Info Check Status</th>
+                  <th>Qualification Review Status</th>
                   <th>Review</th>
                   <th>Status</th>
                   <th>Submitted</th>
@@ -647,6 +880,7 @@ function AdminPanel({
                         {application.playerName} {application.playerSurname}
                       </strong>
                     </td>
+                    <td>{formatDateOnly(application.dateOfBirth)}</td>
                     <td>{application.ageGroup || "Not calculated"}</td>
                     <td>{application.gender || "Not provided"}</td>
                     <td>
@@ -678,50 +912,18 @@ function AdminPanel({
                       )}
                     </td>
                     <td>
-                      <span className={getEmailStatusClass(application.emailStatus)}>
-                        {getEmailStatusLabel(application.emailStatus)}
-                      </span>
-                      {application.emailError && (
-                        <small className="table-error">{application.emailError}</small>
-                      )}
+                      <EmailStatusCell
+                        status={application.informationCheckEmailStatus}
+                        error={application.informationCheckEmailError}
+                      />
                     </td>
                     <td>
-                      {application.status === "paid" ? (
-                        <div className="table-action-group">
-                          <button
-                            className="secondary-button table-action-button"
-                            type="button"
-                            disabled={reviewingTrialId === application.id}
-                            onClick={() => void reviewTrial(application, "SUCCESSFUL")}
-                          >
-                            {reviewingTrialId === application.id
-                              ? "Saving..."
-                              : "Successful"}
-                          </button>
-                          <button
-                            className="secondary-button table-action-button danger"
-                            type="button"
-                            disabled={reviewingTrialId === application.id}
-                            onClick={() => void reviewTrial(application, "UNSUCCESSFUL")}
-                          >
-                            Fail
-                          </button>
-                        </div>
-                      ) : application.authorisationCodeId ? (
-                        <button
-                          className="secondary-button table-action-button"
-                          type="button"
-                          disabled={resendingCodeId === application.authorisationCodeId}
-                          onClick={() => void resendTrialEmail(application)}
-                        >
-                          {resendingCodeId === application.authorisationCodeId
-                            ? "Sending..."
-                            : "Resend Email"}
-                        </button>
-                      ) : (
-                        "Reviewed"
-                      )}
+                      <EmailStatusCell
+                        status={application.qualificationEmailStatus}
+                        error={application.qualificationEmailError}
+                      />
                     </td>
+                    <td>{renderReviewActions(application, "trial")}</td>
                     <td>
                       <span className="table-status">
                         {getTrialStatusLabel(application.status)}
@@ -846,7 +1048,15 @@ function AdminPanel({
                               !registration.membershipCode ||
                               resendingRegistrationId === registration.id
                             }
-                            onClick={() => void resendSimpleRegistrationEmail(registration)}
+                            onClick={() =>
+                              openEmailComposer({
+                                title: "Resend Registration Email",
+                                to: registration.email,
+                                body: buildSimpleRegistrationMessage(registration),
+                                onSend: (emailBody) =>
+                                  resendSimpleRegistrationEmail(registration, emailBody),
+                              })
+                            }
                           >
                             {resendingRegistrationId === registration.id
                               ? "Sending..."
@@ -864,6 +1074,60 @@ function AdminPanel({
           );
         })}
       </div>
+      {emailComposer && (
+        <div className="modal-backdrop" role="presentation">
+          <div
+            className="email-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="emailComposerTitle"
+          >
+            <div className="email-modal-header">
+              <div>
+                <h2 id="emailComposerTitle">{emailComposer.title}</h2>
+                <p>To: {emailComposer.to}</p>
+              </div>
+              <button
+                className="secondary-button table-action-button"
+                type="button"
+                onClick={() => setEmailComposer(null)}
+                disabled={isSendingComposer}
+              >
+                Close
+              </button>
+            </div>
+            <label className="field-label" htmlFor="emailComposerBody">
+              Email Message
+            </label>
+            <textarea
+              id="emailComposerBody"
+              rows={10}
+              value={emailComposer.body}
+              onChange={(event) =>
+                setEmailComposer({ ...emailComposer, body: event.target.value })
+              }
+            />
+            <div className="email-modal-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setEmailComposer(null)}
+                disabled={isSendingComposer}
+              >
+                Cancel
+              </button>
+              <button
+                className="submit-button inline-submit"
+                type="button"
+                onClick={() => void sendComposedEmail()}
+                disabled={isSendingComposer || !emailComposer.body.trim()}
+              >
+                {isSendingComposer ? "Sending..." : "Send Email"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -885,6 +1149,80 @@ function AdminTableSection({
 
 function EmptyTableMessage({ message }: { message: string }) {
   return <p className="admin-empty-message">{message}</p>;
+}
+
+function EmailStatusCell({
+  status,
+  error,
+}: {
+  status?: string;
+  error?: string;
+}) {
+  return (
+    <>
+      <span className={getEmailStatusClass(status)}>
+        {getEmailStatusLabel(status)}
+      </span>
+      {error && <small className="table-error">{error}</small>}
+    </>
+  );
+}
+
+function getApplicationFullName(application: TrialApplication | ClubInviteApplication) {
+  return `${application.playerName} ${application.playerSurname}`.trim();
+}
+
+function getApplicationMembership(application: TrialApplication | ClubInviteApplication) {
+  return application.membershipNumber || application.membershipCode || "not available";
+}
+
+function buildInformationCheckMessage(
+  application: TrialApplication | ClubInviteApplication,
+  status: "SUCCESSFUL" | "UNSUCCESSFUL",
+) {
+  const fullName = getApplicationFullName(application);
+
+  if (status === "SUCCESSFUL") {
+    return appendTrialScheduleDetails(
+      `Your information check for ${fullName} is successful. You can come to the trial please.\n\nMembership number: ${getApplicationMembership(application)}`,
+    );
+  }
+
+  return appendTrialScheduleDetails(
+    `Your information check for ${fullName} was unsuccessful because the birth certificate does not match the birthday provided on the application.\n\nMembership number: ${getApplicationMembership(application)}`,
+  );
+}
+
+function buildFinalReviewMessage(
+  application: TrialApplication | ClubInviteApplication,
+  status: "SUCCESSFUL" | "UNSUCCESSFUL",
+) {
+  const fullName = getApplicationFullName(application);
+  const membership = getApplicationMembership(application);
+
+  if (status === "SUCCESSFUL") {
+    return appendTrialScheduleDetails(
+      `Congratulations, ${fullName} was successful. Continue Urban Warrior onboarding here: ${appLink}.\n\nMembership number: ${membership}\nAuthorisation code: ${application.authorisationCode || "[generated authorisation code]"}`,
+    );
+  }
+
+  return appendTrialScheduleDetails(
+    `Thank you for applying for trials. ${fullName} was not successful this time.\n\nMembership number: ${membership}`,
+  );
+}
+
+function buildClubInviteCodeMessage(invite: {
+  playerName: string;
+  membershipCode: string;
+  inviteCode: string;
+}) {
+  return appendTrialScheduleDetails(
+    `You have been invited to trial with Cape Town Spurs.\n\nPlayer: ${invite.playerName}\nMembership code: ${invite.membershipCode}\nClub invite trial code: ${invite.inviteCode}\nRegistration link: ${appLink}`,
+  );
+}
+
+function buildSimpleRegistrationMessage(registration: SimpleRegistrationRecord) {
+  return `Thank you for registering for ${simpleRegistrationLabels[registration.type]}.\n\nReference number: ${registration.referenceNumber}\n${registration.membershipCode ? `Membership code: ${registration.membershipCode}\n` : ""}Status: ${registration.paymentStatus || "Submitted"}`;
 }
 
 function getTrialStatusLabel(status: TrialApplication["status"]) {
@@ -916,6 +1254,14 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString("en-ZA", {
     dateStyle: "medium",
     timeStyle: "short",
+  });
+}
+
+function formatDateOnly(value?: string) {
+  if (!value) return "Not provided";
+
+  return new Date(value).toLocaleDateString("en-ZA", {
+    dateStyle: "medium",
   });
 }
 

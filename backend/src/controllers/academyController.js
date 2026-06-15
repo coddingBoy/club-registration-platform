@@ -23,7 +23,11 @@ const {
   reviewClubInviteApplication,
   reviewTrialApplication,
   resetTestingData,
+  resendClubInviteReviewEmail,
   resendClubInviteTrialCodeEmail,
+  resendTrialReviewEmail,
+  sendClubInviteInformationCheckEmail,
+  sendTrialInformationCheckEmail,
   resendSimpleRegistrationEmail,
   simulateCodeEmail,
   validateOneTimeCode,
@@ -114,7 +118,11 @@ const getAdminTrialApplications = async (_req, res, next) => {
 
 const patchAdminTrialReview = async (req, res, next) => {
   try {
-    const result = await reviewTrialApplication(req.params.id, req.body.status);
+    const result = await reviewTrialApplication(
+      req.params.id,
+      req.body.status,
+      req.body.emailBody,
+    );
     await logAuditEvent({
       actor: req.user,
       action: "TRIAL_REVIEW",
@@ -128,9 +136,53 @@ const patchAdminTrialReview = async (req, res, next) => {
   }
 };
 
+const postAdminTrialInformationCheckEmail = async (req, res, next) => {
+  try {
+    const emailLog = await sendTrialInformationCheckEmail(
+      req.params.id,
+      req.body.status,
+      req.body.emailBody,
+    );
+    await logAuditEvent({
+      actor: req.user,
+      action: "TRIAL_INFORMATION_CHECK_EMAIL_SENT",
+      entityType: "TrialApplication",
+      entityId: req.params.id,
+      metadata: { status: req.body.status, emailLogId: emailLog.id },
+    });
+    res.status(201).json(emailLog);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const postAdminTrialReviewEmail = async (req, res, next) => {
+  try {
+    const emailLog = await resendTrialReviewEmail(
+      req.params.id,
+      req.body.status,
+      req.body.emailBody,
+    );
+    await logAuditEvent({
+      actor: req.user,
+      action: "TRIAL_REVIEW_EMAIL_RESENT",
+      entityType: "TrialApplication",
+      entityId: req.params.id,
+      metadata: { status: req.body.status, emailLogId: emailLog.id },
+    });
+    res.status(201).json(emailLog);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const patchAdminClubInviteApplicationReview = async (req, res, next) => {
   try {
-    const result = await reviewClubInviteApplication(req.params.id, req.body.status);
+    const result = await reviewClubInviteApplication(
+      req.params.id,
+      req.body.status,
+      req.body.emailBody,
+    );
     await logAuditEvent({
       actor: req.user,
       action: "CLUB_INVITE_APPLICATION_REVIEW",
@@ -139,6 +191,46 @@ const patchAdminClubInviteApplicationReview = async (req, res, next) => {
       metadata: { status: req.body.status, generatedCodeId: result.code?.id || null },
     });
     res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const postAdminClubInviteInformationCheckEmail = async (req, res, next) => {
+  try {
+    const emailLog = await sendClubInviteInformationCheckEmail(
+      req.params.id,
+      req.body.status,
+      req.body.emailBody,
+    );
+    await logAuditEvent({
+      actor: req.user,
+      action: "CLUB_INVITE_INFORMATION_CHECK_EMAIL_SENT",
+      entityType: "ClubInviteApplication",
+      entityId: req.params.id,
+      metadata: { status: req.body.status, emailLogId: emailLog.id },
+    });
+    res.status(201).json(emailLog);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const postAdminClubInviteReviewEmail = async (req, res, next) => {
+  try {
+    const emailLog = await resendClubInviteReviewEmail(
+      req.params.id,
+      req.body.status,
+      req.body.emailBody,
+    );
+    await logAuditEvent({
+      actor: req.user,
+      action: "CLUB_INVITE_REVIEW_EMAIL_RESENT",
+      entityType: "ClubInviteApplication",
+      entityId: req.params.id,
+      metadata: { status: req.body.status, emailLogId: emailLog.id },
+    });
+    res.status(201).json(emailLog);
   } catch (error) {
     next(error);
   }
@@ -189,7 +281,10 @@ const postAdminClubInviteTrialCode = async (req, res, next) => {
 
 const postAdminClubInviteTrialCodeEmail = async (req, res, next) => {
   try {
-    const invite = await resendClubInviteTrialCodeEmail(req.params.id);
+    const invite = await resendClubInviteTrialCodeEmail(
+      req.params.id,
+      req.body.emailBody,
+    );
     await logAuditEvent({
       actor: req.user,
       action: "CLUB_INVITE_TRIAL_CODE_EMAIL_SENT",
@@ -282,7 +377,10 @@ const postAdminCodeEmail = async (req, res, next) => {
 
 const postAdminSimpleRegistrationEmail = async (req, res, next) => {
   try {
-    const emailLog = await resendSimpleRegistrationEmail(req.params.id);
+    const emailLog = await resendSimpleRegistrationEmail(
+      req.params.id,
+      req.body.emailBody,
+    );
     await logAuditEvent({
       actor: req.user,
       action: "SIMPLE_REGISTRATION_EMAIL_SENT",
@@ -451,7 +549,11 @@ module.exports = {
   getSimpleRegistrations,
   getAdminTrialApplications,
   patchAdminTrialReview,
+  postAdminTrialInformationCheckEmail,
+  postAdminTrialReviewEmail,
   patchAdminClubInviteApplicationReview,
+  postAdminClubInviteInformationCheckEmail,
+  postAdminClubInviteReviewEmail,
   getAdminPlayers,
   getAdminClubInviteTrialCodes,
   getAdminClubInviteApplications,

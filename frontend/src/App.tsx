@@ -30,9 +30,12 @@ import {
   reviewTrialApplication,
   reviewClubInviteApplication,
   resetTestingData,
-  resendCodeEmail,
+  resendTrialReviewEmail,
+  resendClubInviteReviewEmail,
   resendClubInviteTrialCodeEmail,
   resendSimpleRegistrationEmail,
+  sendTrialInformationCheckEmail,
+  sendClubInviteInformationCheckEmail,
 } from "./utils/api";
 import { loadFromStorage, saveToStorage } from "./utils/storage";
 import { formatCurrency } from "./utils/validation";
@@ -143,7 +146,25 @@ function App() {
 
   const addTrialApplication = (application: TrialApplication) => {
     if (application.clubInviteCode) {
-      setClubInviteApplications((current) => [application, ...current]);
+      setClubInviteApplications((current) => {
+        const nextApplication = application as ClubInviteApplication;
+        const isSameMembershipApplication = (
+          currentApplication: ClubInviteApplication,
+        ) =>
+          currentApplication.id === nextApplication.id ||
+          (Boolean(nextApplication.membershipNumber) &&
+            currentApplication.membershipNumber === nextApplication.membershipNumber) ||
+          (Boolean(nextApplication.membershipCode) &&
+            currentApplication.membershipCode === nextApplication.membershipCode);
+
+        return [
+          nextApplication,
+          ...current.filter(
+            (currentApplication) =>
+              !isSameMembershipApplication(currentApplication),
+          ),
+        ];
+      });
       return;
     }
 
@@ -176,30 +197,129 @@ function App() {
     setOnboardingCompletions((current) => [record, ...current]);
   };
 
-  const resendTrialEmail = async (codeId: string) => {
-    if (!adminSession) {
-      throw new Error("Admin session expired. Please sign in again.");
-    }
-
-    const emailLog = await resendCodeEmail(codeId, adminSession.token);
-
+  const updateTrialEmailStatus = (
+    applicationId: string,
+    emailLog: { status: string; error?: string | null; createdAt: string },
+    category: "information" | "qualification",
+  ) => {
     setTrialApplications((current) =>
       current.map((application) =>
-        application.authorisationCodeId === codeId
+        application.id === applicationId
           ? {
               ...application,
               emailStatus: emailLog.status,
               emailError: emailLog.error ?? undefined,
               emailSentAt: emailLog.createdAt,
+              ...(category === "information"
+                ? {
+                    informationCheckEmailStatus: emailLog.status,
+                    informationCheckEmailError: emailLog.error ?? undefined,
+                    informationCheckEmailSentAt: emailLog.createdAt,
+                  }
+                : {
+                    qualificationEmailStatus: emailLog.status,
+                    qualificationEmailError: emailLog.error ?? undefined,
+                    qualificationEmailSentAt: emailLog.createdAt,
+                  }),
             }
           : application,
       ),
     );
   };
 
+  const updateClubInviteEmailStatus = (
+    applicationId: string,
+    emailLog: { status: string; error?: string | null; createdAt: string },
+    category: "information" | "qualification",
+  ) => {
+    setClubInviteApplications((current) =>
+      current.map((application) =>
+        application.id === applicationId
+          ? {
+              ...application,
+              emailStatus: emailLog.status,
+              emailError: emailLog.error ?? undefined,
+              emailSentAt: emailLog.createdAt,
+              ...(category === "information"
+                ? {
+                    informationCheckEmailStatus: emailLog.status,
+                    informationCheckEmailError: emailLog.error ?? undefined,
+                    informationCheckEmailSentAt: emailLog.createdAt,
+                  }
+                : {
+                    qualificationEmailStatus: emailLog.status,
+                    qualificationEmailError: emailLog.error ?? undefined,
+                    qualificationEmailSentAt: emailLog.createdAt,
+                  }),
+            }
+          : application,
+      ),
+    );
+  };
+
+  const sendInformationCheckEmail = async (
+    applicationType: "trial" | "club-invite",
+    applicationId: string,
+    status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
+  ) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const emailLog =
+      applicationType === "trial"
+        ? await sendTrialInformationCheckEmail(
+            applicationId,
+            status,
+            adminSession.token,
+            emailBody,
+          )
+        : await sendClubInviteInformationCheckEmail(
+            applicationId,
+            status,
+            adminSession.token,
+            emailBody,
+          );
+
+    if (applicationType === "trial") {
+      updateTrialEmailStatus(applicationId, emailLog, "information");
+    } else {
+      updateClubInviteEmailStatus(applicationId, emailLog, "information");
+    }
+  };
+
+  const resendReviewEmail = async (
+    applicationType: "trial" | "club-invite",
+    applicationId: string,
+    status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
+  ) => {
+    if (!adminSession) {
+      throw new Error("Admin session expired. Please sign in again.");
+    }
+
+    const emailLog =
+      applicationType === "trial"
+        ? await resendTrialReviewEmail(applicationId, status, adminSession.token, emailBody)
+        : await resendClubInviteReviewEmail(
+            applicationId,
+            status,
+            adminSession.token,
+            emailBody,
+          );
+
+    if (applicationType === "trial") {
+      updateTrialEmailStatus(applicationId, emailLog, "qualification");
+    } else {
+      updateClubInviteEmailStatus(applicationId, emailLog, "qualification");
+    }
+  };
+
   const reviewTrial = async (
     trialApplicationId: string,
     status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
   ) => {
     if (!adminSession) {
       throw new Error("Admin session expired. Please sign in again.");
@@ -209,6 +329,7 @@ function App() {
       trialApplicationId,
       status,
       adminSession.token,
+      emailBody,
     );
 
     setTrialApplications((current) =>
@@ -225,6 +346,9 @@ function App() {
               emailStatus: result.emailLog?.status,
               emailError: result.emailLog?.error ?? undefined,
               emailSentAt: result.emailLog?.createdAt,
+              qualificationEmailStatus: result.emailLog?.status,
+              qualificationEmailError: result.emailLog?.error ?? undefined,
+              qualificationEmailSentAt: result.emailLog?.createdAt,
             }
           : application,
       ),
@@ -234,6 +358,7 @@ function App() {
   const reviewClubInvite = async (
     applicationId: string,
     status: "SUCCESSFUL" | "UNSUCCESSFUL",
+    emailBody: string,
   ) => {
     if (!adminSession) {
       throw new Error("Admin session expired. Please sign in again.");
@@ -243,6 +368,7 @@ function App() {
       applicationId,
       status,
       adminSession.token,
+      emailBody,
     );
 
     setClubInviteApplications((current) =>
@@ -259,13 +385,19 @@ function App() {
               emailStatus: result.emailLog?.status,
               emailError: result.emailLog?.error ?? undefined,
               emailSentAt: result.emailLog?.createdAt,
+              qualificationEmailStatus: result.emailLog?.status,
+              qualificationEmailError: result.emailLog?.error ?? undefined,
+              qualificationEmailSentAt: result.emailLog?.createdAt,
             }
           : application,
       ),
     );
   };
 
-  const resendSimpleRegistrationConfirmation = async (registrationId: string) => {
+  const resendSimpleRegistrationConfirmation = async (
+    registrationId: string,
+    emailBody: string,
+  ) => {
     if (!adminSession) {
       throw new Error("Admin session expired. Please sign in again.");
     }
@@ -273,6 +405,7 @@ function App() {
     const emailLog = await resendSimpleRegistrationEmail(
       registrationId,
       adminSession.token,
+      emailBody,
     );
 
     setSimpleRegistrations((current) =>
@@ -304,6 +437,7 @@ function App() {
     playerName: string;
     email: string;
     emailConfirm: string;
+    emailBody?: string;
   }) => {
     if (!adminSession) {
       throw new Error("Admin session expired. Please sign in again.");
@@ -316,12 +450,16 @@ function App() {
     ]);
   };
 
-  const resendClubInviteTrialCode = async (inviteId: string) => {
+  const resendClubInviteTrialCode = async (inviteId: string, emailBody: string) => {
     if (!adminSession) {
       throw new Error("Admin session expired. Please sign in again.");
     }
 
-    const invite = await resendClubInviteTrialCodeEmail(inviteId, adminSession.token);
+    const invite = await resendClubInviteTrialCodeEmail(
+      inviteId,
+      adminSession.token,
+      emailBody,
+    );
 
     setClubInviteTrialCodes((current) =>
       current.map((currentInvite) =>
@@ -388,9 +526,10 @@ function App() {
                 onboardingCompletions={onboardingCompletions}
                 onGenerateClubInviteTrialCode={generateClubInviteTrialCode}
                 onResendClubInviteTrialCode={resendClubInviteTrialCode}
-                onResendTrialEmail={resendTrialEmail}
                 onReviewTrial={reviewTrial}
                 onReviewClubInviteApplication={reviewClubInvite}
+                onSendInformationCheckEmail={sendInformationCheckEmail}
+                onResendReviewEmail={resendReviewEmail}
                 onPreviewTrialBirthCertificate={previewTrialBirthCertificate}
                 onResendSimpleRegistrationEmail={resendSimpleRegistrationConfirmation}
                 onResetTestingData={resetAdminTestingData}
@@ -483,6 +622,15 @@ function mapDatabaseTrial(trial: Awaited<ReturnType<typeof getTrialApplications>
     emailStatus: guardianEmailLog?.status ?? trial.emailStatus,
     emailError: guardianEmailLog?.error ?? trial.emailError ?? undefined,
     emailSentAt: guardianEmailLog?.createdAt ?? trial.emailSentAt,
+    informationCheckEmailStatus: trial.informationCheckEmailStatus,
+    informationCheckEmailError: trial.informationCheckEmailError ?? undefined,
+    informationCheckEmailSentAt: trial.informationCheckEmailSentAt,
+    qualificationEmailStatus:
+      guardianEmailLog?.status ?? trial.qualificationEmailStatus,
+    qualificationEmailError:
+      guardianEmailLog?.error ?? trial.qualificationEmailError ?? undefined,
+    qualificationEmailSentAt:
+      guardianEmailLog?.createdAt ?? trial.qualificationEmailSentAt,
   };
 }
 
@@ -522,6 +670,15 @@ function mapDatabaseClubInviteApplication(
     emailStatus: guardianEmailLog?.status ?? application.emailStatus,
     emailError: guardianEmailLog?.error ?? application.emailError ?? undefined,
     emailSentAt: guardianEmailLog?.createdAt ?? application.emailSentAt,
+    informationCheckEmailStatus: application.informationCheckEmailStatus,
+    informationCheckEmailError: application.informationCheckEmailError ?? undefined,
+    informationCheckEmailSentAt: application.informationCheckEmailSentAt,
+    qualificationEmailStatus:
+      guardianEmailLog?.status ?? application.qualificationEmailStatus,
+    qualificationEmailError:
+      guardianEmailLog?.error ?? application.qualificationEmailError ?? undefined,
+    qualificationEmailSentAt:
+      guardianEmailLog?.createdAt ?? application.qualificationEmailSentAt,
   };
 }
 
