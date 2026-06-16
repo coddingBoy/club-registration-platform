@@ -76,23 +76,19 @@ Use a test-safe backend email configuration first. For local smoke testing,
 leave `RESEND_API_KEY` empty in `backend/.env` so email actions are logged as
 skipped instead of sending through Resend.
 
-For temporary Render/testing email delivery through Gmail SMTP, configure:
+For Render/free-plan email delivery, use Resend's HTTP API instead of Gmail
+SMTP. Render free web services block outbound SMTP ports, while Resend uses
+HTTPS.
 
 ```env
-EMAIL_PROVIDER=smtp
-EMAIL_FROM=Cape Town Spurs Registration <your-gmail-address@gmail.com>
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_USER=your-gmail-address@gmail.com
-SMTP_PASS=your-google-app-password
-ADMIN_NOTIFICATION_EMAIL=your-gmail-address@gmail.com
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_your_resend_api_key
+EMAIL_FROM=Cape Town Spurs <registrations@verified-domain.example>
+ADMIN_NOTIFICATION_EMAIL=alexie@capetownspurs.co.za
 ```
 
-Use a Google App Password for `SMTP_PASS`, not the Gmail account password. Once
-the `capetownspurs.co.za` sending domain is verified, switch back to
-`EMAIL_PROVIDER=resend` and use `EMAIL_FROM=Cape Town Spurs
-<registrations@capetownspurs.co.za>`.
+`EMAIL_FROM` must use a domain verified in Resend. The default `resend.dev`
+testing domain can only send to the Resend account owner's email address.
 
 ```bash
 cd backend
