@@ -76,6 +76,24 @@ Use a test-safe backend email configuration first. For local smoke testing,
 leave `RESEND_API_KEY` empty in `backend/.env` so email actions are logged as
 skipped instead of sending through Resend.
 
+For temporary Render/testing email delivery through Gmail SMTP, configure:
+
+```env
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=Cape Town Spurs Registration <your-gmail-address@gmail.com>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-gmail-address@gmail.com
+SMTP_PASS=your-google-app-password
+ADMIN_NOTIFICATION_EMAIL=your-gmail-address@gmail.com
+```
+
+Use a Google App Password for `SMTP_PASS`, not the Gmail account password. Once
+the `capetownspurs.co.za` sending domain is verified, switch back to
+`EMAIL_PROVIDER=resend` and use `EMAIL_FROM=Cape Town Spurs
+<registrations@capetownspurs.co.za>`.
+
 ```bash
 cd backend
 npm start

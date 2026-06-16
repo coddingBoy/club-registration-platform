@@ -66,15 +66,20 @@ Phase 9 role rules:
 
 ## Email Integration
 
-Phase 6 uses Resend by default.
+Phase 6 can send email through Resend or SMTP. For the short-term Gmail setup,
+use SMTP:
 
 Required env vars:
 
 ```bash
-EMAIL_PROVIDER=resend
-RESEND_API_KEY=re_your_api_key_here
-EMAIL_FROM=Cape Town Spurs <onboarding@yourdomain.com>
-ADMIN_NOTIFICATION_EMAIL=admin@soccerschool.com
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=Cape Town Spurs Registration <your-gmail-address@gmail.com>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-gmail-address@gmail.com
+SMTP_PASS=your-google-app-password
+ADMIN_NOTIFICATION_EMAIL=your-gmail-address@gmail.com
 ```
 
 Email types handled by the backend:

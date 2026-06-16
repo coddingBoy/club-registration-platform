@@ -31,11 +31,21 @@ services:
       - key: PAYMENT_CANCEL_URL
         value: https://cape-town-spurs-registration-test.onrender.com/payment/cancel
       - key: EMAIL_PROVIDER
-        value: resend
+        value: smtp
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
-        value: Cape Town Spurs <onboarding@resend.dev>
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_SECURE
+        value: true
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
       - key: ADMIN_NOTIFICATION_EMAIL
         value: alexie@capetownspurs.co.za
       - key: PAYMENT_PROVIDER
