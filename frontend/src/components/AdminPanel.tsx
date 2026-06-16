@@ -1,5 +1,8 @@
 import { useState, type ReactNode } from "react";
 import type {
+  AdminDocumentRecord,
+  AdminEmailLogRecord,
+  AdminPlayerRecord,
   ClubInviteApplication,
   ClubInviteTrialCode,
   OnboardingCompletion,
@@ -13,6 +16,9 @@ type AdminPanelProps = {
   trialApplications: TrialApplication[];
   clubInviteApplications: ClubInviteApplication[];
   clubInviteTrialCodes: ClubInviteTrialCode[];
+  adminPlayers: AdminPlayerRecord[];
+  adminDocuments: AdminDocumentRecord[];
+  adminEmailLogs: AdminEmailLogRecord[];
   simpleRegistrations: SimpleRegistrationRecord[];
   onboardingCompletions: OnboardingCompletion[];
   onGenerateClubInviteTrialCode: (payload: {
@@ -76,6 +82,9 @@ function AdminPanel({
   trialApplications,
   clubInviteApplications,
   clubInviteTrialCodes,
+  adminPlayers,
+  adminDocuments,
+  adminEmailLogs,
   simpleRegistrations,
   onboardingCompletions,
   onGenerateClubInviteTrialCode,
@@ -649,6 +658,21 @@ function AdminPanel({
             <strong>{simpleRegistrations.length}</strong>
             <p>General member, event, camp, and ticket submissions.</p>
           </article>
+          <article className="status-card">
+            <span>Players</span>
+            <strong>{adminPlayers.length}</strong>
+            <p>Player records currently stored in Postgres.</p>
+          </article>
+          <article className="status-card">
+            <span>Documents</span>
+            <strong>{adminDocuments.length}</strong>
+            <p>Uploaded documents available for protected preview.</p>
+          </article>
+          <article className="status-card">
+            <span>Email Logs</span>
+            <strong>{adminEmailLogs.length}</strong>
+            <p>Latest outbound email attempts and provider status.</p>
+          </article>
         </div>
 
         <div className="admin-toolbar clean-toolbar">
@@ -997,6 +1021,133 @@ function AdminPanel({
           )}
         </AdminTableSection>
 
+        <AdminTableSection title="Players">
+          {adminPlayers.length === 0 ? (
+            <EmptyTableMessage message="No player records yet." />
+          ) : (
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Membership</th>
+                  <th>Passport</th>
+                  <th>Birthday</th>
+                  <th>Age Group</th>
+                  <th>Guardian</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminPlayers.map((player) => (
+                  <tr key={player.id}>
+                    <td>
+                      <strong>
+                        {player.firstName} {player.surname}
+                      </strong>
+                    </td>
+                    <td>{player.membershipNumber || "Not issued"}</td>
+                    <td>{player.passportNumber || "Not issued"}</td>
+                    <td>{formatDateOnly(player.dateOfBirth ?? undefined)}</td>
+                    <td>{player.ageGroup || "Not calculated"}</td>
+                    <td>
+                      {player.guardianName || "Not provided"}
+                      {player.guardianEmail && (
+                        <small className="table-subtext">{player.guardianEmail}</small>
+                      )}
+                    </td>
+                    <td>
+                      <span className="table-status">{formatStatusLabel(player.status)}</span>
+                    </td>
+                    <td>{formatDateTime(player.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </AdminTableSection>
+
+        <AdminTableSection title="Documents">
+          {adminDocuments.length === 0 ? (
+            <EmptyTableMessage message="No uploaded documents yet." />
+          ) : (
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Type</th>
+                  <th>Linked To</th>
+                  <th>Size</th>
+                  <th>Preview</th>
+                  <th>Uploaded</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminDocuments.map((document) => (
+                  <tr key={document.id}>
+                    <td>
+                      <strong>{document.fileName}</strong>
+                      {document.mimeType && (
+                        <small className="table-subtext">{document.mimeType}</small>
+                      )}
+                    </td>
+                    <td>{formatStatusLabel(document.type)}</td>
+                    <td>{getDocumentOwnerLabel(document)}</td>
+                    <td>{formatFileSize(document.fileSize)}</td>
+                    <td>
+                      <button
+                        className="secondary-button table-action-button table-inline-button"
+                        type="button"
+                        disabled={previewingDocumentId === document.id}
+                        onClick={() => void onPreviewTrialBirthCertificate(document.id)}
+                      >
+                        {previewingDocumentId === document.id ? "Opening..." : "View"}
+                      </button>
+                    </td>
+                    <td>{formatDateTime(document.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </AdminTableSection>
+
+        <AdminTableSection title="Email Logs">
+          {adminEmailLogs.length === 0 ? (
+            <EmptyTableMessage message="No email logs yet." />
+          ) : (
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Recipient</th>
+                  <th>Subject</th>
+                  <th>Status</th>
+                  <th>Related Code</th>
+                  <th>Message Preview</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminEmailLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td>{log.to}</td>
+                    <td>
+                      <strong>{log.subject}</strong>
+                      <small className="table-subtext">{log.provider}</small>
+                    </td>
+                    <td>
+                      <EmailStatusCell status={log.status} error={log.error ?? undefined} />
+                    </td>
+                    <td>{log.code?.code || log.onboardingRecord?.passportNumber || "Not linked"}</td>
+                    <td>{truncateText(htmlToPlainText(log.body), 110)}</td>
+                    <td>{formatDateTime(log.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </AdminTableSection>
+
         {Object.entries(simpleRegistrationLabels).map(([type, label]) => {
           const records = simpleRegistrations.filter(
             (registration) => registration.type === type,
@@ -1251,6 +1402,48 @@ function htmlToPlainText(value: string) {
   return element.textContent || "";
 }
 
+function formatStatusLabel(value?: string | null) {
+  if (!value) return "Not provided";
+
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getDocumentOwnerLabel(document: AdminDocumentRecord) {
+  if (document.player) {
+    const membership = document.player.membershipNumber
+      ? ` (${document.player.membershipNumber})`
+      : "";
+
+    return `${document.player.firstName} ${document.player.surname}${membership}`;
+  }
+
+  if (document.onboardingRecord) {
+    return `${document.onboardingRecord.playerName} ${document.onboardingRecord.playerSurname} (${document.onboardingRecord.programmeTitle})`;
+  }
+
+  return "Not linked";
+}
+
+function formatFileSize(value?: number | null) {
+  if (!value) return "Unknown";
+
+  if (value < 1024 * 1024) {
+    return `${Math.max(Math.round(value / 1024), 1)} KB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function truncateText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+
+  return `${value.slice(0, maxLength - 1).trim()}...`;
+}
+
 function EmailStatusCell({
   status,
   error,
@@ -1302,7 +1495,7 @@ function buildFinalReviewMessage(
 
   if (status === "SUCCESSFUL") {
     return appendTrialScheduleDetails(
-      `Congratulations, ${fullName} was successful. Continue Urban Warrior onboarding here: ${appLink}.\n\nMembership number: ${membership}\nAuthorisation code: ${application.authorisationCode || "[generated authorisation code]"}`,
+      `Congratulations, ${fullName} was successful.\n\nMembership number: ${membership}\nAuthorisation code: ${application.authorisationCode || "[generated authorisation code]"}\n\nNext steps:\n1. Open the registration system: ${appLink}\n2. Go to Urban Warrior Onboarding.\n3. Enter your authorisation code and membership number.\n4. Complete your registration details, debit order authorisation, and payment.`,
     );
   }
 

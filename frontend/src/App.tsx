@@ -11,6 +11,9 @@ import { getSimpleRegistrationForm } from "./data/registrationForms";
 import { programmes } from "./data/programmes";
 import type {
   AdminSession,
+  AdminDocumentRecord,
+  AdminEmailLogRecord,
+  AdminPlayerRecord,
   ClubInviteApplication,
   AppTab,
   ClubInviteTrialCode,
@@ -36,6 +39,9 @@ import {
   resendSimpleRegistrationEmail,
   sendTrialInformationCheckEmail,
   sendClubInviteInformationCheckEmail,
+  getAdminDocuments,
+  getAdminEmailLogs,
+  getAdminPlayers,
 } from "./utils/api";
 import { loadFromStorage, saveToStorage } from "./utils/storage";
 import { formatCurrency } from "./utils/validation";
@@ -78,6 +84,9 @@ function App() {
   const [clubInviteTrialCodes, setClubInviteTrialCodes] = useState<
     ClubInviteTrialCode[]
   >([]);
+  const [adminPlayers, setAdminPlayers] = useState<AdminPlayerRecord[]>([]);
+  const [adminDocuments, setAdminDocuments] = useState<AdminDocumentRecord[]>([]);
+  const [adminEmailLogs, setAdminEmailLogs] = useState<AdminEmailLogRecord[]>([]);
   const [simpleRegistrations, setSimpleRegistrations] = useState<
     SimpleRegistrationRecord[]
   >([]);
@@ -126,13 +135,21 @@ function App() {
 
     let active = true;
 
-    getClubInviteTrialCodes(adminSession.token)
-      .then((invites) => {
+    Promise.all([
+      getClubInviteTrialCodes(adminSession.token),
+      getAdminPlayers(adminSession.token),
+      getAdminDocuments(adminSession.token),
+      getAdminEmailLogs(adminSession.token),
+    ])
+      .then(([invites, players, documents, emailLogs]) => {
         if (!active) return;
         setClubInviteTrialCodes(invites.map(mapClubInviteTrialCode));
+        setAdminPlayers(players);
+        setAdminDocuments(documents);
+        setAdminEmailLogs(emailLogs);
       })
       .catch((error) => {
-        console.error("Failed to load club invite trial codes", error);
+        console.error("Failed to load admin dashboard data", error);
       });
 
     return () => {
@@ -257,6 +274,16 @@ function App() {
     );
   };
 
+  const refreshAdminEmailLogs = async () => {
+    if (!adminSession) return;
+
+    try {
+      setAdminEmailLogs(await getAdminEmailLogs(adminSession.token));
+    } catch (error) {
+      console.error("Failed to refresh admin email logs", error);
+    }
+  };
+
   const sendInformationCheckEmail = async (
     applicationType: "trial" | "club-invite",
     applicationId: string,
@@ -287,6 +314,8 @@ function App() {
     } else {
       updateClubInviteEmailStatus(applicationId, emailLog, "information");
     }
+
+    await refreshAdminEmailLogs();
   };
 
   const resendReviewEmail = async (
@@ -314,6 +343,8 @@ function App() {
     } else {
       updateClubInviteEmailStatus(applicationId, emailLog, "qualification");
     }
+
+    await refreshAdminEmailLogs();
   };
 
   const reviewTrial = async (
@@ -353,6 +384,8 @@ function App() {
           : application,
       ),
     );
+
+    await refreshAdminEmailLogs();
   };
 
   const reviewClubInvite = async (
@@ -392,6 +425,8 @@ function App() {
           : application,
       ),
     );
+
+    await refreshAdminEmailLogs();
   };
 
   const resendSimpleRegistrationConfirmation = async (
@@ -420,6 +455,8 @@ function App() {
           : registration,
       ),
     );
+
+    await refreshAdminEmailLogs();
   };
 
   const previewTrialBirthCertificate = async (documentId: string) => {
@@ -466,6 +503,8 @@ function App() {
         currentInvite.id === inviteId ? mapClubInviteTrialCode(invite) : currentInvite,
       ),
     );
+
+    await refreshAdminEmailLogs();
   };
 
   const resetAdminTestingData = async () => {
@@ -480,6 +519,9 @@ function App() {
     setSimpleRegistrations([]);
     setGeneratedCodes([]);
     setOnboardingCompletions([]);
+    setAdminPlayers([]);
+    setAdminDocuments([]);
+    setAdminEmailLogs([]);
   };
 
   const simpleFormConfig = isSimpleRegistrationTab(activeTab)
@@ -522,6 +564,9 @@ function App() {
                 trialApplications={trialApplications}
                 clubInviteApplications={clubInviteApplications}
                 clubInviteTrialCodes={clubInviteTrialCodes}
+                adminPlayers={adminPlayers}
+                adminDocuments={adminDocuments}
+                adminEmailLogs={adminEmailLogs}
                 simpleRegistrations={simpleRegistrations}
                 onboardingCompletions={onboardingCompletions}
                 onGenerateClubInviteTrialCode={generateClubInviteTrialCode}

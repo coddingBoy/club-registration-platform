@@ -5,6 +5,7 @@ const frontendPort = Number(process.env.TEST_FRONTEND_PORT || 5173);
 export default defineConfig({
   testDir: "./tests",
   timeout: 60_000,
+  workers: 1,
   expect: {
     timeout: 10_000,
   },
@@ -22,6 +23,17 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "mobile-ios-viewport",
+      use: {
+        ...devices["iPhone 13"],
+        browserName: "chromium",
+      },
+    },
+    {
+      name: "mobile-chrome",
+      use: { ...devices["Pixel 5"] },
     },
   ],
 });

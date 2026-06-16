@@ -99,6 +99,16 @@ function UrbanWarriorOnboarding({
         setValidatedCodeType(
           result.type === "TRIAL_AUTHORISATION" ? "trial-authorisation" : "renewal",
         );
+        const eligibilityError = getProgrammeEligibilityError(
+          values.programmeId,
+          result.playerDateOfBirth,
+        );
+
+        if (eligibilityError) {
+          setMessage(eligibilityError);
+          setIsSubmitting(false);
+          return;
+        }
       } catch (apiError) {
         setMessage(apiError instanceof Error ? apiError.message : "Invalid code.");
         setIsSubmitting(false);
@@ -440,6 +450,34 @@ function getStepError(
   }
 
   return "";
+}
+
+function getProgrammeEligibilityError(
+  programmeId: string,
+  dateOfBirth?: string | null,
+) {
+  if (!dateOfBirth) return "";
+
+  const programme = programmes.find((item) => item.id === programmeId);
+  const seasonYear = new Date().getFullYear();
+  const birthYear = new Date(dateOfBirth).getFullYear();
+  const age = seasonYear - birthYear;
+
+  if (programmeId === "first-touch" && age > 7) {
+    return `${programme?.title || "First Touch"} is for players aged 7 and below in ${seasonYear}. This player is ${age}. Suggested pathway: ${getProgrammeSuggestionForAge(age)}. If you are unsure, contact support@capetownspurs.co.za.`;
+  }
+
+  if (programmeId === "little-warriors" && (age < 8 || age > 10)) {
+    return `${programme?.title || "Little Warriors"} is for players aged 8 to 10 in ${seasonYear}. This player is ${age}. Suggested pathway: ${getProgrammeSuggestionForAge(age)}. If you are unsure, contact support@capetownspurs.co.za.`;
+  }
+
+  return "";
+}
+
+function getProgrammeSuggestionForAge(age: number) {
+  if (age <= 7) return "First Touch";
+  if (age >= 8 && age <= 10) return "Little Warriors";
+  return "Academy trial / Urban Warrior programme pathway";
 }
 
 export default UrbanWarriorOnboarding;

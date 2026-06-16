@@ -1,4 +1,5 @@
 import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
+import { getTrialWindowCapacity } from "../data/trialWindows";
 import type {
   TrialApplication,
   TrialRegistration as TrialRegistrationData,
@@ -70,6 +71,13 @@ function TrialRegistration({
     () => getTrialAgeGroup(values.dateOfBirth, seasonYear),
     [seasonYear, values.dateOfBirth],
   );
+  const trialCapacity = useMemo(
+    () => getTrialWindowCapacity(ageGroup.label),
+    [ageGroup.label],
+  );
+  const trialSpotsRemaining = trialCapacity
+    ? Math.max(trialCapacity.capacity - trialCapacity.registeredCount, 0)
+    : null;
 
   const updateValue = (name: keyof TrialRegistrationData, value: string) => {
     setValues((current) => ({ ...current, [name]: value }));
@@ -142,6 +150,15 @@ function TrialRegistration({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors = validateTrialForm(values, birthCertificate, mode);
+    const currentCapacity = getTrialWindowCapacity(values.ageGroup);
+
+    if (
+      currentCapacity &&
+      currentCapacity.capacity - currentCapacity.registeredCount <= 0
+    ) {
+      nextErrors.ageGroup = `${values.ageGroup} trial applications are currently full. Please contact the club for assistance.`;
+    }
+
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -302,6 +319,19 @@ function TrialRegistration({
                   The system calculates the age group from the player's birth year for the {seasonYear} season. Please check the result before saving.
                 </span>
               </div>
+              {ageGroup.label && ageGroup.label !== "Outside Trial Age Groups" && (
+                <div className="trial-capacity-note" role="status">
+                  <strong>Trial places</strong>
+                  {trialCapacity ? (
+                    <span>
+                      {trialSpotsRemaining} of {trialCapacity.capacity} places remaining for{" "}
+                      {ageGroup.label}.
+                    </span>
+                  ) : (
+                    <span>Capacity for {ageGroup.label} is still to be confirmed.</span>
+                  )}
+                </div>
+              )}
             </FormField>
             <FormField label="Gender" htmlFor="trialGender" error={errors.gender} required>
               <select

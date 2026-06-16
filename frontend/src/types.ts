@@ -236,3 +236,64 @@ export type ClubInviteTrialCode = {
   emailSentAt?: string;
   createdAt: string;
 };
+
+export type AdminPlayerRecord = {
+  id: string;
+  membershipNumber?: string | null;
+  passportNumber?: string | null;
+  firstName: string;
+  surname: string;
+  dateOfBirth?: string | null;
+  ageGroup?: string | null;
+  gender?: string | null;
+  guardianName?: string | null;
+  guardianEmail?: string | null;
+  guardianPhone?: string | null;
+  programmeId?: string | null;
+  status: string;
+  createdAt: string;
+};
+
+export type AdminDocumentRecord = {
+  id: string;
+  fileName: string;
+  mimeType?: string | null;
+  type: string;
+  fileSize?: number | null;
+  fileUrl?: string | null;
+  player?: {
+    firstName: string;
+    surname: string;
+    membershipNumber?: string | null;
+  } | null;
+  onboardingRecord?: {
+    playerName: string;
+    playerSurname: string;
+    programmeTitle: string;
+    passportNumber: string;
+  } | null;
+  createdAt: string;
+};
+
+export type AdminEmailLogRecord = {
+  id: string;
+  to: string;
+  subject: string;
+  body: string;
+  provider: string;
+  providerMessageId?: string | null;
+  status: string;
+  error?: string | null;
+  code?: {
+    code: string;
+    type: string;
+    membershipNumber?: string | null;
+  } | null;
+  onboardingRecord?: {
+    playerName: string;
+    playerSurname: string;
+    programmeTitle: string;
+    passportNumber: string;
+  } | null;
+  createdAt: string;
+};

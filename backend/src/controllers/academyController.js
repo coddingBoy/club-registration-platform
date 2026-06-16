@@ -13,6 +13,7 @@ const {
   getClubInviteTrialCodeByMembership,
   listCodes,
   listDocuments,
+  listEmailLogs,
   listOnboardingRecords,
   listPlayers,
   listClubInviteApplications,
@@ -401,6 +402,7 @@ const postValidateCode = async (req, res, next) => {
       valid: true,
       type: code.type,
       membershipNumber: code.membershipNumber,
+      playerDateOfBirth: code.player?.dateOfBirth,
     });
   } catch (error) {
     next(error);
@@ -504,6 +506,14 @@ const getAdminDocument = async (req, res, next) => {
   }
 };
 
+const getAdminEmailLogs = async (_req, res, next) => {
+  try {
+    res.json(await listEmailLogs());
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAdminDocumentFile = async (req, res, next) => {
   try {
     const document = await getDocument(req.params.id);
@@ -572,6 +582,7 @@ module.exports = {
   getAdminOnboardingRecords,
   getAdminDocuments,
   getAdminDocument,
+  getAdminEmailLogs,
   getAdminDocumentFile,
   getAdminExportCsv,
   getAdminAuditLogs,

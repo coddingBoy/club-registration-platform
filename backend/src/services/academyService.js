@@ -176,6 +176,54 @@ const buildClubInviteTrialEmailBody = ({ playerName, membershipCode, inviteCode 
     `You have been invited to trial with Cape Town Spurs. Player: ${playerName}. Membership code: ${membershipCode}. Club invite trial code: ${inviteCode}. Registration link: ${env.clientUrl}.`,
   );
 
+const buildOnboardingCodeNextSteps = ({ code, membershipNumber, codeType }) =>
+  [
+    "Next steps:",
+    `1. Open the registration system: ${env.clientUrl}`,
+    "2. Go to Urban Warrior Onboarding.",
+    `3. Enter your ${codeType === "RENEWAL" ? "renewal" : "authorisation"} code: ${code}.`,
+    membershipNumber ? `4. Enter your membership number: ${membershipNumber}.` : "",
+    "5. Complete your registration details, debit order authorisation, and payment.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+const getProgrammeAgeRule = (programmeId) => {
+  if (programmeId === "first-touch") {
+    return { label: "7 and below", minAge: 0, maxAge: 7 };
+  }
+
+  if (programmeId === "little-warriors") {
+    return { label: "8 to 10", minAge: 8, maxAge: 10 };
+  }
+
+  return null;
+};
+
+const getProgrammeSuggestionForAge = (age) => {
+  if (age <= 7) return "First Touch";
+  if (age >= 8 && age <= 10) return "Little Warriors";
+  if (age >= 11) return "Academy trial / Urban Warrior programme pathway";
+  return "contact the club";
+};
+
+const validateProgrammeAgeEligibility = ({ programme, player }) => {
+  const rule = getProgrammeAgeRule(programme.id);
+
+  if (!rule || !player?.dateOfBirth) return;
+
+  const seasonYear = new Date().getFullYear();
+  const birthYear = new Date(player.dateOfBirth).getFullYear();
+  const age = seasonYear - birthYear;
+
+  if (age >= rule.minAge && age <= rule.maxAge) return;
+
+  throw new AppError(
+    `${programme.title} is for players aged ${rule.label} in ${seasonYear}. This player is ${age} based on date of birth ${new Date(player.dateOfBirth).toISOString().slice(0, 10)}. Suggested pathway: ${getProgrammeSuggestionForAge(age)}. If you are unsure, contact support@capetownspurs.co.za.`,
+    400,
+  );
+};
+
 const getClubInviteTrialCodeByMembership = async (membershipCode) => {
   if (!membershipCode) {
     throw new AppError("membershipCode is required", 400);
@@ -664,7 +712,11 @@ const resendTrialReviewEmail = async (trialApplicationId, status, emailBody) => 
         : "Cape Town Spurs trial outcome",
     body: ensureTrialScheduleDetails(emailBody || (
       status === "SUCCESSFUL"
-        ? `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.player?.membershipNumber || "not available"}. Authorisation code: ${application.authorisationCode.code}.`
+        ? `Congratulations, ${application.playerName} ${application.playerSurname} was successful.\n\nMembership number: ${application.player?.membershipNumber || "not available"}.\nAuthorisation code: ${application.authorisationCode.code}.\n\n${buildOnboardingCodeNextSteps({
+            code: application.authorisationCode.code,
+            membershipNumber: application.player?.membershipNumber,
+            codeType: "TRIAL_AUTHORISATION",
+          })}`
         : `Thank you for applying for trials. ${application.playerName} ${application.playerSurname} was not successful this time. Membership number: ${application.player?.membershipNumber || "not available"}.`)),
     codeId: status === "SUCCESSFUL" ? application.authorisationCode.id : undefined,
   });
@@ -700,7 +752,11 @@ const resendClubInviteReviewEmail = async (applicationId, status, emailBody) => 
         : "Cape Town Spurs club invite trial outcome",
     body: ensureTrialScheduleDetails(emailBody || (
       status === "SUCCESSFUL"
-        ? `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.membershipCode}. Authorisation code: ${application.authorisationCode.code}.`
+        ? `Congratulations, ${application.playerName} ${application.playerSurname} was successful.\n\nMembership number: ${application.membershipCode}.\nAuthorisation code: ${application.authorisationCode.code}.\n\n${buildOnboardingCodeNextSteps({
+            code: application.authorisationCode.code,
+            membershipNumber: application.membershipCode,
+            codeType: "TRIAL_AUTHORISATION",
+          })}`
         : `Thank you for applying for the club invite trial. ${application.playerName} ${application.playerSurname} was not successful this time. Membership number: ${application.membershipCode}.`)),
     codeId: status === "SUCCESSFUL" ? application.authorisationCode.id : undefined,
   });
@@ -771,7 +827,11 @@ const reviewTrialApplication = async (trialApplicationId, status, emailBody) => 
     const emailLog = await createEmailLog(tx, {
       to: application.guardianEmail,
       subject: "Cape Town Spurs trial successful",
-      body: ensureTrialScheduleDetails(emailBody || `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.player?.membershipNumber || "not available"}. Authorisation code: ${code.code}.`),
+      body: ensureTrialScheduleDetails(emailBody || `Congratulations, ${application.playerName} ${application.playerSurname} was successful.\n\nMembership number: ${application.player?.membershipNumber || "not available"}.\nAuthorisation code: ${code.code}.\n\n${buildOnboardingCodeNextSteps({
+        code: code.code,
+        membershipNumber: application.player?.membershipNumber,
+        codeType: "TRIAL_AUTHORISATION",
+      })}`),
       codeId: code.id,
     });
 
@@ -844,7 +904,11 @@ const reviewClubInviteApplication = async (applicationId, status, emailBody) => 
     const emailLog = await createEmailLog(tx, {
       to: application.guardianEmail,
       subject: "Cape Town Spurs club invite trial successful",
-      body: ensureTrialScheduleDetails(emailBody || `Congratulations, ${application.playerName} ${application.playerSurname} was successful. Continue Urban Warrior onboarding here: ${env.clientUrl}. Membership number: ${application.membershipCode}. Authorisation code: ${code.code}.`),
+      body: ensureTrialScheduleDetails(emailBody || `Congratulations, ${application.playerName} ${application.playerSurname} was successful.\n\nMembership number: ${application.membershipCode}.\nAuthorisation code: ${code.code}.\n\n${buildOnboardingCodeNextSteps({
+        code: code.code,
+        membershipNumber: application.membershipCode,
+        codeType: "TRIAL_AUTHORISATION",
+      })}`),
       codeId: code.id,
     });
 
@@ -1057,7 +1121,11 @@ const createRenewalCode = async (playerId) => {
   const emailLog = await createEmailLog(prisma, {
     to: player.guardianEmail || "",
     subject: "Cape Town Spurs renewal code",
-    body: `Your Urban Warrior renewal code is ${code.code}.`,
+    body: `Your Urban Warrior renewal code is ${code.code}.\n\n${buildOnboardingCodeNextSteps({
+      code: code.code,
+      membershipNumber: player.membershipNumber,
+      codeType: "RENEWAL",
+    })}`,
     codeId: code.id,
   });
 
@@ -1101,7 +1169,11 @@ const simulateCodeEmail = async (codeId) => {
         : "Cape Town Spurs authorisation code",
     body: `Your code is ${code.code}.${
       code.membershipNumber ? ` Membership number: ${code.membershipNumber}.` : ""
-    }`,
+    }\n\n${buildOnboardingCodeNextSteps({
+      code: code.code,
+      membershipNumber: code.membershipNumber,
+      codeType: code.type,
+    })}`,
     codeId: code.id,
   });
 };
@@ -1109,6 +1181,7 @@ const simulateCodeEmail = async (codeId) => {
 const validateOneTimeCode = async ({ code, membershipNumber }) => {
   const oneTimeCode = await prisma.oneTimeCode.findUnique({
     where: { code },
+    include: { player: true },
   });
 
   if (!oneTimeCode || oneTimeCode.usedAt || isExpired(oneTimeCode.expiresAt)) {
@@ -1129,6 +1202,7 @@ const createOnboardingRecord = async (payload) =>
   prisma.$transaction(async (tx) => {
     const code = await tx.oneTimeCode.findUnique({
       where: { code: payload.code },
+      include: { player: true },
     });
 
     if (!code || code.usedAt || isExpired(code.expiresAt)) {
@@ -1144,6 +1218,8 @@ const createOnboardingRecord = async (payload) =>
     if (!programme) {
       throw new AppError("Invalid programme", 400);
     }
+
+    validateProgrammeAgeEligibility({ programme, player: code.player });
 
     const trialCreditAmount = code.type === "TRIAL_AUTHORISATION" ? trialFeeAmount : 0;
     const amountDue = Math.max(programme.registrationFee - trialCreditAmount, 0);
@@ -1342,6 +1418,30 @@ const listDocuments = ({ type, playerId, onboardingRecordId } = {}) => {
   });
 };
 
+const listEmailLogs = () =>
+  prisma.emailLog.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      code: {
+        select: {
+          code: true,
+          type: true,
+          membershipNumber: true,
+        },
+      },
+      onboardingRecord: {
+        select: {
+          id: true,
+          playerName: true,
+          playerSurname: true,
+          programmeTitle: true,
+          passportNumber: true,
+        },
+      },
+    },
+  });
+
 const getDocument = async (documentId) => {
   const document = await prisma.document.findUnique({
     where: { id: documentId },
@@ -1422,6 +1522,7 @@ module.exports = {
   createDocumentUpload,
   createTrialBirthCertificateUpload,
   listDocuments,
+  listEmailLogs,
   getDocument,
   exportRegistrationsCsv,
 };

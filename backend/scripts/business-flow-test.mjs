@@ -218,7 +218,7 @@ await step("complete onboarding with issued code", async () => {
     body: JSON.stringify({
       code: authCode,
       membershipNumber,
-      programmeId: "first-touch",
+      programmeId: "ads",
       playerName: trialPayload.playerName,
       playerSurname: trialPayload.playerSurname,
       idNumber: "1405201234088",

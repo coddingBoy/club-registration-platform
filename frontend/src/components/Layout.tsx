@@ -19,6 +19,12 @@ function Layout({ children }: LayoutProps) {
         </div>
       </header>
       <main className="foundation-layout">{children}</main>
+      <footer className="support-footer">
+        <div>
+          <strong>Need help with registration?</strong>
+          <span>Email support@capetownspurs.co.za or contact the academy office during business hours.</span>
+        </div>
+      </footer>
     </div>
   );
 }

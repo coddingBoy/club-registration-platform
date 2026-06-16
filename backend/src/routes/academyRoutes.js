@@ -5,6 +5,7 @@ const {
   getAdminDocument,
   getAdminDocumentFile,
   getAdminDocuments,
+  getAdminEmailLogs,
   getAdminExportCsv,
   getAdminClubInviteTrialCodes,
   getAdminClubInviteApplications,
@@ -115,6 +116,7 @@ router.get("/admin/onboarding", adminRead, getAdminOnboardingRecords);
 router.get("/admin/documents", adminRead, getAdminDocuments);
 router.get("/admin/documents/:id/file", adminRead, getAdminDocumentFile);
 router.get("/admin/documents/:id", adminRead, getAdminDocument);
+router.get("/admin/email-logs", adminRead, getAdminEmailLogs);
 router.get("/admin/audit-logs", requireRole("SUPER_ADMIN"), getAdminAuditLogs);
 router.get("/admin/export/csv", adminWrite, getAdminExportCsv);
 

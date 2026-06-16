@@ -50,6 +50,17 @@ const selectTopTab = async (page: Page, label: string) => {
   await page.getByRole("navigation", { name: "System sections" }).getByRole("button", { name: label }).click();
 };
 
+const expectNoPageHorizontalOverflow = async (page: Page) => {
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    const body = document.body;
+
+    return Math.max(root.scrollWidth, body.scrollWidth) - root.clientWidth;
+  });
+
+  expect(overflow).toBeLessThanOrEqual(2);
+};
+
 const fillTrialForm = async (
   page: Page,
   fixture: TrialFixture,
@@ -76,9 +87,16 @@ const fillTrialForm = async (
   await page.locator("#trialMedical").fill("None");
 };
 
-const sendOpenEmailComposer = async (page: Page, title: string) => {
+const sendOpenEmailComposer = async (
+  page: Page,
+  title: string,
+  expectedText?: string,
+) => {
   const dialog = page.getByRole("dialog", { name: title });
   await expect(dialog).toBeVisible();
+  if (expectedText) {
+    await expect(dialog).toContainText(expectedText);
+  }
   await dialog.getByRole("button", { name: "Send Email" }).click();
   await expect(dialog).toBeHidden();
 };
@@ -118,13 +136,17 @@ test("new trial to admin approval to onboarding", async ({ page }) => {
 
   await page.goto("/");
   await expect(page.getByRole("button", { name: "New Trial" })).toHaveClass(/active/);
+  await expect(page.getByText("Need help with registration?")).toBeVisible();
+  await expectNoPageHorizontalOverflow(page);
 
   await page.getByRole("button", { name: "Save Trial Application" }).click();
   await expect(page.getByText("Please fix the highlighted fields before saving.")).toBeVisible();
 
   await fillTrialForm(page, fixture);
+  await expect(page.getByText(/places remaining for Under 12/)).toBeVisible();
   await page.getByRole("button", { name: "Save Trial Application" }).click();
   await expect(page.getByText(/Trial application saved\. Membership number MEM-/)).toBeVisible();
+  await expectNoPageHorizontalOverflow(page);
 
   await selectTopTab(page, "Admin");
   await page.locator("#adminEmail").fill(adminEmail);
@@ -132,26 +154,49 @@ test("new trial to admin approval to onboarding", async ({ page }) => {
   await page.getByRole("button", { name: "Sign In" }).click();
   await expect(page.getByRole("button", { name: "Sign Out" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "New Trial Applications" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Players" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Documents" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Email Logs" })).toBeVisible();
+  await expectNoPageHorizontalOverflow(page);
 
-  const trialRow = page.getByRole("row").filter({ hasText: `${fixture.playerName} ${fixture.playerSurname}` });
+  const newTrialSection = page.locator(".admin-table-section").filter({
+    has: page.getByRole("heading", { name: "New Trial Applications" }),
+  });
+  const emailLogsSection = page.locator(".admin-table-section").filter({
+    has: page.getByRole("heading", { name: "Email Logs" }),
+  });
+  const trialRow = newTrialSection
+    .getByRole("row")
+    .filter({ hasText: `${fixture.playerName} ${fixture.playerSurname}` });
   await expect(trialRow).toContainText("Waiting Admin Verification");
 
   await trialRow.getByRole("button", { name: "Info Check OK" }).click();
   await sendOpenEmailComposer(page, "Information Check Successful Email");
   await expect(trialRow.locator("td").nth(11)).not.toContainText("Unknown");
+  await expect(
+    emailLogsSection
+      .getByRole("row")
+      .filter({ hasText: "Cape Town Spurs information check successful" }),
+  ).toBeVisible();
 
   await trialRow.getByRole("button", { name: "Successful" }).click();
-  await sendOpenEmailComposer(page, "Final Successful Review Email");
+  await sendOpenEmailComposer(page, "Final Successful Review Email", "Next steps:");
   await expect(trialRow).toContainText("Onboarding Issued");
   await expect(trialRow).toContainText("TRIAL-AUTH-");
+  await expect(
+    emailLogsSection
+      .getByRole("row")
+      .filter({ hasText: "Cape Town Spurs trial successful" }),
+  ).toBeVisible();
 
   const membershipNumber = (await trialRow.locator("td").nth(8).innerText()).trim();
   const authorisationCode = (await trialRow.locator("td").nth(9).innerText()).trim();
 
   await selectTopTab(page, "Urban Warrior Onboarding");
+  await expectNoPageHorizontalOverflow(page);
   await page.locator("#authCode").fill(authorisationCode);
   await page.locator("#onboardMembership").fill(membershipNumber);
-  await page.locator("#onboardProgramme").selectOption("first-touch");
+  await page.locator("#onboardProgramme").selectOption("ads");
   await page.locator("#onboardName").fill(fixture.playerName);
   await page.locator("#onboardSurname").fill(fixture.playerSurname);
   await page.locator("#onboardId").fill("1405201234088");
@@ -164,21 +209,24 @@ test("new trial to admin approval to onboarding", async ({ page }) => {
   await page.getByLabel("Authorise debit order placeholder").check();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator("strong").filter({ hasText: "Amount due now" })).toContainText(
-    "R 2 100,00",
+    "R 4 350,00",
   );
   await page.getByRole("button", { name: "Complete Payment" }).click();
 
   await expect(page.getByRole("heading", { name: "Onboarding Complete" })).toBeVisible();
   await expect(page.getByText(/New Passport Number:/)).toBeVisible();
+  await expectNoPageHorizontalOverflow(page);
 });
 
 test("club invite lookup and application flow", async ({ page }) => {
   const suffix = Date.now();
   await page.goto("/");
+  await expectNoPageHorizontalOverflow(page);
   const invite = await generateAdminInvite(page, suffix);
 
   await selectTopTab(page, "Player Registration");
   await page.getByRole("button", { name: "Club Invite Trial" }).click();
+  await expectNoPageHorizontalOverflow(page);
   await page.locator("#clubInviteMembershipCode").fill(invite.membershipCode);
   await page.getByRole("button", { name: "Lookup Invite" }).click();
   await expect(page.getByText("Club invite details found. Please complete the remaining trial form.")).toBeVisible();
@@ -196,6 +244,7 @@ test("club invite lookup and application flow", async ({ page }) => {
   await expect(page.locator("#clubInviteCode")).toHaveValue(invite.inviteCode);
   await page.getByRole("button", { name: "Save Trial Application" }).click();
   await expect(page.getByText(/Club invite trial application saved\. Membership number MEM-/)).toBeVisible();
+  await expectNoPageHorizontalOverflow(page);
 });
 
 test("holiday camp membership payment flow", async ({ page }) => {
@@ -203,6 +252,7 @@ test("holiday camp membership payment flow", async ({ page }) => {
 
   await page.goto("/");
   await selectTopTab(page, "Holiday Camp");
+  await expectNoPageHorizontalOverflow(page);
   await page.locator("#holiday-camp-fullName").fill(`Camp ${suffix}`);
   await page.locator("#holiday-camp-email").fill(`camp-ui-${suffix}@example.com`);
   await page.locator("#holiday-camp-phone").fill("0825551234");
@@ -215,4 +265,5 @@ test("holiday camp membership payment flow", async ({ page }) => {
   await expect(page.getByText(/Membership code CAMP-MEM-/)).toBeVisible();
   await page.getByRole("button", { name: "Simulate Payment & Finish" }).click();
   await expect(page.getByText(/Payment simulated\. Holiday Camp Registration complete\./)).toBeVisible();
+  await expectNoPageHorizontalOverflow(page);
 });
